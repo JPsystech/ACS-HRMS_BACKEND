@@ -1,0 +1,5 @@
+Manager ID: 1, Reportee ID: 2
+Manager department: 1, Reportee department: 1
+Reportee reporting manager: 1
+Subordinate IDs for manager 1: [2]
+Reportee 2 in subordinates: True
