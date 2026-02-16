@@ -128,7 +128,7 @@ def get_role_rank(db: Session, employee: Employee) -> int:
         role_rank value for the employee's role
     """
     role_row = db.query(RoleModel).filter(
-        RoleModel.name == employee.role.value,
+        RoleModel.name == employee.role,
         RoleModel.is_active == True
     ).first()
     

@@ -84,7 +84,7 @@ def require_roles(*allowed_roles: Role):
         
         # Check if user has role rank 1 (ADMIN equivalent)
         role_model = db.query(RoleModel).filter(
-            func.lower(RoleModel.name) == func.lower(current_user.role.value)
+            func.lower(RoleModel.name) == func.lower(current_user.role)
         ).first()
         if role_model and role_model.role_rank == 1:
             return current_user

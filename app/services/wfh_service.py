@@ -148,7 +148,7 @@ def apply_wfh(
     role_row = (
         db.query(RoleModel)
         .filter(
-            RoleModel.name == employee.role.value,
+            RoleModel.name == employee.role,
             RoleModel.is_active == True,
         )
         .first()

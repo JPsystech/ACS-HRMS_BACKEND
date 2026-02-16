@@ -55,7 +55,7 @@ async def login(
     # Get role_rank from roles table
     from app.models.role import RoleModel
     role_model = db.query(RoleModel).filter(
-        RoleModel.name == employee.role.value
+        RoleModel.name == employee.role
     ).first()
     role_rank = role_model.role_rank if role_model else 99
     
@@ -73,7 +73,7 @@ async def login(
     token_data = {
         "sub": str(employee.id),
         "emp_code": employee.emp_code,
-        "role": employee.role.value,
+        "role": employee.role,
         "role_rank": role_rank
     }
     access_token = create_access_token(data=token_data)
@@ -87,7 +87,7 @@ async def login(
             action="AUTH_LOGIN_SUCCESS",
             entity_type="auth",
             entity_id=None,
-            meta={"emp_code": employee.emp_code, "role": employee.role.value}
+            meta={"emp_code": employee.emp_code, "role": employee.role}
         )
     except Exception as e:
         # Log error but don't fail login

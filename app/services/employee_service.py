@@ -111,7 +111,7 @@ def create_employee(
     
     # Get actor's role rank
     actor_role_row = db.query(RoleModel).filter(
-        func.lower(RoleModel.name) == func.lower(actor.role.value)
+        func.lower(RoleModel.name) == func.lower(actor.role)
     ).first()
     if not actor_role_row:
         raise HTTPException(
@@ -122,12 +122,12 @@ def create_employee(
     
     # Get employee's role rank
     employee_role_row = db.query(RoleModel).filter(
-        func.lower(RoleModel.name) == func.lower(employee_data.role.value)
+        func.lower(RoleModel.name) == func.lower(employee_data.role)
     ).first()
     if not employee_role_row:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Role configuration not found for {employee_data.role.value}",
+            detail=f"Role configuration not found for {employee_data.role}",
         )
     employee_rank = employee_role_row.role_rank
     
@@ -206,13 +206,13 @@ def create_employee(
 
         manager_role_row = (
             db.query(RoleModel)
-            .filter(func.lower(RoleModel.name) == func.lower(reporting_manager.role.value))
+            .filter(func.lower(RoleModel.name) == func.lower(reporting_manager.role))
             .first()
         )
         if not manager_role_row:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Role configuration not found for reporting manager role {reporting_manager.role.value}",
+                detail=f"Role configuration not found for reporting manager role {reporting_manager.role}",
             )
 
         manager_rank = manager_role_row.role_rank
@@ -652,13 +652,13 @@ def update_employee(
 
         manager_role_row = (
             db.query(RoleModel)
-            .filter(func.lower(RoleModel.name) == func.lower(reporting_manager.role.value))
+            .filter(func.lower(RoleModel.name) == func.lower(reporting_manager.role))
             .first()
         )
         if not manager_role_row:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Role configuration not found for reporting manager role {reporting_manager.role.value}",
+                detail=f"Role configuration not found for reporting manager role {reporting_manager.role}",
             )
 
         manager_rank = manager_role_row.role_rank
