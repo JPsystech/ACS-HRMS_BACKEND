@@ -162,7 +162,7 @@ def upgrade() -> None:
                 sa.Column('employee_id', sa.Integer(), nullable=False),
                 sa.Column('request_date', sa.Date(), nullable=False),
                 sa.Column('reason', sa.Text(), nullable=True),
-                sa.Column('status', wfh_status_enum, nullable=False, server_default="'PENDING'"),
+                sa.Column('status', wfh_status_enum, nullable=False, server_default="PENDING"),
                 sa.Column('day_value', sa.Numeric(5, 2), nullable=False, server_default='0.5'),
                 sa.Column('applied_at', sa.DateTime(timezone=True), server_default=datetime_default, nullable=False),
                 sa.Column('approved_by', sa.Integer(), nullable=True),
@@ -175,14 +175,16 @@ def upgrade() -> None:
                 sa.UniqueConstraint('employee_id', 'request_date', name='uq_wfh_employee_date')
             )
         else:
-            wfh_status_enum = postgresql.ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', name='wfhstatus', create_type=True)
+            # Create enum type idempotently
+            wfh_status_enum = postgresql.ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', name='wfhstatus')
+            wfh_status_enum.create(bind, checkfirst=True)
             op.create_table(
                 'wfh_requests',
                 sa.Column('id', sa.Integer(), nullable=False),
                 sa.Column('employee_id', sa.Integer(), nullable=False),
                 sa.Column('request_date', sa.Date(), nullable=False),
                 sa.Column('reason', sa.Text(), nullable=True),
-                sa.Column('status', wfh_status_enum, nullable=False, server_default="'PENDING'"),
+                sa.Column('status', wfh_status_enum, nullable=False, server_default="PENDING"),
                 sa.Column('day_value', sa.Numeric(5, 2), nullable=False, server_default='0.5'),
                 sa.Column('applied_at', sa.DateTime(timezone=True), server_default=datetime_default, nullable=False),
                 sa.Column('approved_by', sa.Integer(), nullable=True),
