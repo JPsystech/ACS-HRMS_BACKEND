@@ -9,11 +9,32 @@ Run: alembic upgrade head
 from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 revision: str = "018_repair_wallet"
 down_revision: Union[str, None] = "017_leave_wallet"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+
+def table_exists(bind, table_name, schema="public"):
+    """Check if a table exists in the database."""
+    inspector = inspect(bind)
+    return table_name in inspector.get_table_names(schema=schema)
+
+
+def index_exists(bind, index_name, table_name, schema="public"):
+    """Check if an index exists on a table."""
+    inspector = inspect(bind)
+    indexes = inspector.get_indexes(table_name, schema=schema)
+    return any(idx["name"] == index_name for idx in indexes)
+
+
+def unique_constraint_exists(bind, constraint_name, table_name, schema="public"):
+    """Check if a unique constraint exists on a table."""
+    inspector = inspect(bind)
+    constraints = inspector.get_unique_constraints(table_name, schema=schema)
+    return any(constraint["name"] == constraint_name for constraint in constraints)
 
 
 def upgrade() -> None:
@@ -40,11 +61,14 @@ def upgrade() -> None:
             sa.UniqueConstraint("employee_id", "year", "leave_type", name="uq_leave_balances_employee_year_type"),
         )
         # Create indexes only if they don't already exist (idempotent)
-        existing_indexes = {idx["name"] for idx in inspector.get_indexes("leave_balances")}
-        if "ix_leave_balances_employee_id" not in existing_indexes:
-            op.create_index(op.f("ix_leave_balances_employee_id"), "leave_balances", ["employee_id"], unique=False)
-        if "ix_leave_balances_year" not in existing_indexes:
+        if not index_exists(bind, "ix_leave_balances_employee_id", "leave_balances"):
+            op.create_index("ix_leave_balances_employee_id", "leave_balances", ["employee_id"], unique=False)
+        if not index_exists(bind, "ix_leave_balances_year", "leave_balances"):
             op.create_index("ix_leave_balances_year", "leave_balances", ["year"], unique=False)
+        
+        # Check if unique constraint already exists (idempotent)
+        if not unique_constraint_exists(bind, "uq_leave_balances_employee_year_type", "leave_balances"):
+            op.create_unique_constraint("uq_leave_balances_employee_year_type", "leave_balances", ["employee_id", "year", "leave_type"])
 
     if "leave_transactions" not in tables:
         op.create_table(
@@ -65,9 +89,12 @@ def upgrade() -> None:
             sa.ForeignKeyConstraint(["leave_id"], ["leave_requests.id"], ondelete="SET NULL"),
             sa.ForeignKeyConstraint(["action_by_employee_id"], ["employees.id"], ondelete="SET NULL"),
         )
-        op.create_index(op.f("ix_leave_transactions_employee_id"), "leave_transactions", ["employee_id"], unique=False)
-        op.create_index(op.f("ix_leave_transactions_leave_id"), "leave_transactions", ["leave_id"], unique=False)
-        op.create_index("ix_leave_transactions_year", "leave_transactions", ["year"], unique=False)
+        if not index_exists(bind, "ix_leave_transactions_employee_id", "leave_transactions"):
+            op.create_index("ix_leave_transactions_employee_id", "leave_transactions", ["employee_id"], unique=False)
+        if not index_exists(bind, "ix_leave_transactions_leave_id", "leave_transactions"):
+            op.create_index("ix_leave_transactions_leave_id", "leave_transactions", ["leave_id"], unique=False)
+        if not index_exists(bind, "ix_leave_transactions_year", "leave_transactions"):
+            op.create_index("ix_leave_transactions_year", "leave_transactions", ["year"], unique=False)
 
 
 def downgrade() -> None:
