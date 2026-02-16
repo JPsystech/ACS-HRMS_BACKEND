@@ -9,7 +9,7 @@ Run: alembic upgrade head
 from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
 revision: str = "018_repair_wallet"
 down_revision: Union[str, None] = "017_leave_wallet"
@@ -20,29 +20,41 @@ depends_on: Union[str, Sequence[str], None] = None
 def table_exists(bind, table_name, schema="public"):
     """Check if a table exists in the database."""
     inspector = inspect(bind)
-    return table_name in inspector.get_table_names(schema=schema)
+    return inspector.has_table(table_name, schema=schema)
 
 
-def index_exists(bind, index_name, table_name, schema="public"):
-    """Check if an index exists on a table."""
-    inspector = inspect(bind)
-    indexes = inspector.get_indexes(table_name, schema=schema)
-    return any(idx["name"] == index_name for idx in indexes)
+def index_exists_postgresql(bind, index_name, table_name, schema="public"):
+    """Check if an index exists in PostgreSQL using pg_indexes."""
+    result = bind.execute(
+        text("""
+            SELECT 1 FROM pg_indexes 
+            WHERE schemaname = :schema AND tablename = :table AND indexname = :index
+        """),
+        {"schema": schema, "table": table_name, "index": index_name}
+    ).scalar()
+    return result is not None
 
 
-def unique_constraint_exists(bind, constraint_name, table_name, schema="public"):
-    """Check if a unique constraint exists on a table."""
-    inspector = inspect(bind)
-    constraints = inspector.get_unique_constraints(table_name, schema=schema)
-    return any(constraint["name"] == constraint_name for constraint in constraints)
+def create_index_if_not_exists_postgresql(bind, index_name, table_name, columns, unique=False):
+    """Create an index in PostgreSQL only if it doesn't exist."""
+    if not index_exists_postgresql(bind, index_name, table_name):
+        columns_str = ", ".join(columns)
+        unique_str = "UNIQUE " if unique else ""
+        bind.execute(
+            text(f"CREATE {unique_str}INDEX IF NOT EXISTS {index_name} ON {table_name} ({columns_str})")
+        )
 
 
 def upgrade() -> None:
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
-    tables = inspector.get_table_names()
-
-    if "leave_balances" not in tables:
+    
+    # Check if we're using PostgreSQL
+    is_postgresql = bind.engine.name == 'postgresql'
+    
+    # ============================================
+    # 1. Create leave_balances table if missing
+    # ============================================
+    if not table_exists(bind, "leave_balances"):
         op.create_table(
             "leave_balances",
             sa.Column("id", sa.Integer(), nullable=False),
@@ -60,17 +72,25 @@ def upgrade() -> None:
             sa.ForeignKeyConstraint(["employee_id"], ["employees.id"]),
             sa.UniqueConstraint("employee_id", "year", "leave_type", name="uq_leave_balances_employee_year_type"),
         )
-        # Create indexes only if they don't already exist (idempotent)
-        if not index_exists(bind, "ix_leave_balances_employee_id", "leave_balances"):
-            op.create_index("ix_leave_balances_employee_id", "leave_balances", ["employee_id"], unique=False)
-        if not index_exists(bind, "ix_leave_balances_year", "leave_balances"):
-            op.create_index("ix_leave_balances_year", "leave_balances", ["year"], unique=False)
         
-        # Check if unique constraint already exists (idempotent)
-        if not unique_constraint_exists(bind, "uq_leave_balances_employee_year_type", "leave_balances"):
-            op.create_unique_constraint("uq_leave_balances_employee_year_type", "leave_balances", ["employee_id", "year", "leave_type"])
+        # Create indexes for leave_balances (only if table was just created)
+        if is_postgresql:
+            create_index_if_not_exists_postgresql(bind, "ix_leave_balances_employee_id", "leave_balances", ["employee_id"])
+            create_index_if_not_exists_postgresql(bind, "ix_leave_balances_year", "leave_balances", ["year"])
+        else:
+            # For SQLite, use Alembic's op.create_index (SQLite supports IF NOT EXISTS natively)
+            op.create_index("ix_leave_balances_employee_id", "leave_balances", ["employee_id"], unique=False)
+            op.create_index("ix_leave_balances_year", "leave_balances", ["year"], unique=False)
+    else:
+        # Table exists, check and create missing indexes only
+        if is_postgresql:
+            create_index_if_not_exists_postgresql(bind, "ix_leave_balances_employee_id", "leave_balances", ["employee_id"])
+            create_index_if_not_exists_postgresql(bind, "ix_leave_balances_year", "leave_balances", ["year"])
 
-    if "leave_transactions" not in tables:
+    # ============================================
+    # 2. Create leave_transactions table if missing
+    # ============================================
+    if not table_exists(bind, "leave_transactions"):
         op.create_table(
             "leave_transactions",
             sa.Column("id", sa.Integer(), nullable=False),
@@ -89,12 +109,23 @@ def upgrade() -> None:
             sa.ForeignKeyConstraint(["leave_id"], ["leave_requests.id"], ondelete="SET NULL"),
             sa.ForeignKeyConstraint(["action_by_employee_id"], ["employees.id"], ondelete="SET NULL"),
         )
-        if not index_exists(bind, "ix_leave_transactions_employee_id", "leave_transactions"):
+        
+        # Create indexes for leave_transactions (only if table was just created)
+        if is_postgresql:
+            create_index_if_not_exists_postgresql(bind, "ix_leave_transactions_employee_id", "leave_transactions", ["employee_id"])
+            create_index_if_not_exists_postgresql(bind, "ix_leave_transactions_leave_id", "leave_transactions", ["leave_id"])
+            create_index_if_not_exists_postgresql(bind, "ix_leave_transactions_year", "leave_transactions", ["year"])
+        else:
+            # For SQLite, use Alembic's op.create_index
             op.create_index("ix_leave_transactions_employee_id", "leave_transactions", ["employee_id"], unique=False)
-        if not index_exists(bind, "ix_leave_transactions_leave_id", "leave_transactions"):
             op.create_index("ix_leave_transactions_leave_id", "leave_transactions", ["leave_id"], unique=False)
-        if not index_exists(bind, "ix_leave_transactions_year", "leave_transactions"):
             op.create_index("ix_leave_transactions_year", "leave_transactions", ["year"], unique=False)
+    else:
+        # Table exists, check and create missing indexes only
+        if is_postgresql:
+            create_index_if_not_exists_postgresql(bind, "ix_leave_transactions_employee_id", "leave_transactions", ["employee_id"])
+            create_index_if_not_exists_postgresql(bind, "ix_leave_transactions_leave_id", "leave_transactions", ["leave_id"])
+            create_index_if_not_exists_postgresql(bind, "ix_leave_transactions_year", "leave_transactions", ["year"])
 
 
 def downgrade() -> None:
