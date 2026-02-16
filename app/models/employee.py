@@ -1,7 +1,7 @@
 """
 Employee model
 """
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -29,13 +29,13 @@ class Employee(Base):
     emp_code = Column(String, unique=True, nullable=False, index=True)
     name = Column(String, nullable=False)
     mobile_number = Column(String, nullable=True)
-    role = Column(SQLEnum(Role), nullable=False)
+    role = Column(String, nullable=False)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=False)  # Required
     reporting_manager_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     password_hash = Column(String, nullable=True)
     join_date = Column(Date, nullable=False)
     active = Column(Boolean, default=True, nullable=False)
-    work_mode = Column(SQLEnum(WorkMode), default=WorkMode.OFFICE, nullable=False)
+    work_mode = Column(String, default="OFFICE", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.current_timestamp(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.current_timestamp(), onupdate=func.current_timestamp(), nullable=False)
 

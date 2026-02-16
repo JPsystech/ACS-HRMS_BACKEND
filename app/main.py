@@ -21,9 +21,10 @@ from app.core.errors import (
 from app.core.logging import setup_logging
 from app.core.security import hash_password
 from app.db.session import SessionLocal
-from app.models.employee import Employee, Role, WorkMode
+from app.models.employee import Employee, WorkMode
 from app.models.department import Department
 from app.models.role import RoleModel
+from app.constants import ROLE_ADMIN, ROLE_HR
 from datetime import date
 from sqlalchemy.exc import OperationalError
 
@@ -93,7 +94,7 @@ def bootstrap_initial_admin() -> None:
             # Check if any admin user exists by emp_code OR role OR role_rank
             admin_exists = db.query(Employee).filter(
                 (Employee.emp_code == "ADM-001") | 
-                (Employee.role == Role.ADMIN)
+                (Employee.role == "ADMIN")
             ).first()
             
             # Also check if any user has role_rank=1 through roles table
@@ -150,7 +151,7 @@ def bootstrap_initial_admin() -> None:
                 emp_code="ADM-001",
                 name="System Administrator",
                 mobile_number="",
-                role=Role.ADMIN,
+                role="ADMIN",
                 department_id=admin_dept.id,
                 password_hash=hash_password(settings.INITIAL_ADMIN_PASSWORD),
                 join_date=date.today(),
