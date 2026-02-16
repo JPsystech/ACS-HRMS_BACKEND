@@ -12,9 +12,7 @@ engine = create_engine(
     echo=False
 )
 
-# Create all tables automatically on startup for SQLite
-if "sqlite" in settings.DATABASE_URL:
-    Base.metadata.create_all(bind=engine)
+# Tables are managed by Alembic migrations for PostgreSQL
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

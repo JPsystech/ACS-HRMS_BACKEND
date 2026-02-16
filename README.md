@@ -1312,6 +1312,10 @@ In Railway project settings, add the following environment variables:
 
 **Required:**
 - `DATABASE_URL`: Automatically provided by Railway PostgreSQL service (use the variable reference)
+  - **Format examples:**
+    - `postgresql+psycopg2://user:password@host:port/database`
+    - `postgresql+psycopg://user:password@host:port/database`
+  - **On Render**: Use the Internal Database URL if using Render Postgres, or External URL for other providers
 - `JWT_SECRET_KEY`: Generate a secure random string (minimum 32 characters)
   ```bash
   # Generate a secure key:
