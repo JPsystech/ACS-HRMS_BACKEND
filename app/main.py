@@ -91,7 +91,8 @@ def bootstrap_initial_admin() -> None:
         db = SessionLocal()
         try:
             # Check if any admin user exists (role_rank = 1)
-            admin_exists = db.query(Employee).join(RoleModel, Employee.role == RoleModel.name).filter(
+            from sqlalchemy import cast, String
+            admin_exists = db.query(Employee).join(RoleModel, cast(Employee.role, String) == RoleModel.name).filter(
                 RoleModel.role_rank == 1
             ).first()
             
