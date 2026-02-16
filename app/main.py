@@ -90,13 +90,19 @@ def bootstrap_initial_admin() -> None:
     try:
         db = SessionLocal()
         try:
-            # Check if any admin user exists (role_rank = 1)
+            # Check if any admin user exists by emp_code OR role OR role_rank
+            admin_exists = db.query(Employee).filter(
+                (Employee.emp_code == "ADM-001") | 
+                (Employee.role == Role.ADMIN)
+            ).first()
+            
+            # Also check if any user has role_rank=1 through roles table
             from sqlalchemy import cast, String
-            admin_exists = db.query(Employee).join(RoleModel, cast(Employee.role, String) == RoleModel.name).filter(
+            admin_by_rank = db.query(Employee).join(RoleModel, cast(Employee.role, String) == RoleModel.name).filter(
                 RoleModel.role_rank == 1
             ).first()
             
-            if admin_exists:
+            if admin_exists or admin_by_rank:
                 logger.info("Admin user already exists, skipping initial bootstrap")
                 return
             
@@ -117,6 +123,7 @@ def bootstrap_initial_admin() -> None:
             
             # Create default departments if they don't exist
             default_departments = ["Administration", "HR", "QA/QC", "Accounts", "Operations"]
+            department_map = {}
             
             for dept_name in default_departments:
                 existing_dept = db.query(Department).filter(Department.name == dept_name).first()
@@ -127,11 +134,16 @@ def bootstrap_initial_admin() -> None:
                     )
                     db.add(new_dept)
                     logger.info("Created department: %s", dept_name)
+                else:
+                    department_map[dept_name] = existing_dept
             
             db.flush()
             
-            # Get Administration department for admin user
+            # Get Administration department for admin user (re-query to ensure we have the object)
             admin_dept = db.query(Department).filter(Department.name == "Administration").first()
+            if not admin_dept:
+                logger.error("Administration department not found after creation attempt")
+                return
             
             # Create initial admin user
             initial_admin = Employee(
