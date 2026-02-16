@@ -26,7 +26,7 @@ def upgrade() -> None:
         sa.Column('year', sa.Integer(), nullable=False),
         sa.Column('date', sa.Date(), nullable=False),
         sa.Column('name', sa.String(255), nullable=False),
-        sa.Column('active', sa.Boolean(), nullable=False, server_default='true'),
+        sa.Column('active', sa.Boolean(), nullable=False, server_default=sa.text('true')),
         sa.Column(
             'created_at',
             sa.DateTime(timezone=True),
@@ -53,7 +53,7 @@ def upgrade() -> None:
         sa.Column('year', sa.Integer(), nullable=False),
         sa.Column('date', sa.Date(), nullable=False),
         sa.Column('name', sa.String(255), nullable=False),
-        sa.Column('active', sa.Boolean(), nullable=False, server_default='true'),
+        sa.Column('active', sa.Boolean(), nullable=False, server_default=sa.text('true')),
         sa.Column(
             'created_at',
             sa.DateTime(timezone=True),

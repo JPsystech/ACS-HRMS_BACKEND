@@ -31,7 +31,7 @@ def upgrade() -> None:
         'departments',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(), nullable=False),
-        sa.Column('active', sa.Boolean(), nullable=False, server_default='true'),
+        sa.Column('active', sa.Boolean(), nullable=False, server_default=sa.text('true')),
         sa.Column(
             'created_at',
             sa.DateTime(timezone=True),
@@ -60,7 +60,7 @@ def upgrade() -> None:
         sa.Column('reporting_manager_id', sa.Integer(), nullable=True),
         sa.Column('password_hash', sa.String(), nullable=False),
         sa.Column('join_date', sa.Date(), nullable=False),
-        sa.Column('active', sa.Boolean(), nullable=False, server_default='true'),
+        sa.Column('active', sa.Boolean(), nullable=False, server_default=sa.text('true')),
         sa.Column(
             'created_at',
             sa.DateTime(timezone=True),

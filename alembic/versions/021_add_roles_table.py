@@ -22,8 +22,8 @@ def upgrade() -> None:
         "roles",
         sa.Column("id", sa.Integer(), primary_key=True, nullable=False),
         sa.Column("name", sa.String(), nullable=False),
-        sa.Column("wfh_enabled", sa.Boolean(), nullable=False, server_default=sa.text("0")),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column("wfh_enabled", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

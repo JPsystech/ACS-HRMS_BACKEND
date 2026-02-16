@@ -21,7 +21,7 @@ def upgrade() -> None:
     if 'override_policy' in cols:
         return
     # Add override fields to leave_requests
-    op.add_column('leave_requests', sa.Column('override_policy', sa.Boolean(), nullable=False, server_default='false'))
+    op.add_column('leave_requests', sa.Column('override_policy', sa.Boolean(), nullable=False, server_default=sa.text('false')))
     op.add_column('leave_requests', sa.Column('override_remark', sa.Text(), nullable=True))
 
 
