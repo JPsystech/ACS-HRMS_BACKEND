@@ -10,6 +10,7 @@ from fastapi import HTTPException, status
 from app.models.leave import LeaveRequest, LeaveType, LeaveStatus, LeaveBalance, LeaveApproval, ApprovalAction
 from app.models.employee import Employee, Role
 from app.models.role import RoleModel
+from app.utils.roles import role_name
 from app.services.audit_service import log_audit
 
 logger = logging.getLogger(__name__)
@@ -128,7 +129,7 @@ def get_role_rank(db: Session, employee: Employee) -> int:
         role_rank value for the employee's role
     """
     role_row = db.query(RoleModel).filter(
-        RoleModel.name == employee.role,
+        RoleModel.name == role_name(employee.role),
         RoleModel.is_active == True
     ).first()
     

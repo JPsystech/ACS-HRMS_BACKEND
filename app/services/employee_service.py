@@ -5,7 +5,7 @@ import logging
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, status
 from typing import List, Optional
-from sqlalchemy import func
+from sqlalchemy import func, cast, String
 from app.models.employee import Employee, Role
 from app.models.department import Department
 from app.models.role import RoleModel
@@ -18,6 +18,7 @@ from app.schemas.employee import (
     ReportingManagerRef,
 )
 from app.core.security import hash_password
+from app.utils.enums import enum_to_str
 from app.services.audit_service import log_audit
 
 
@@ -111,7 +112,7 @@ def create_employee(
     
     # Get actor's role rank
     actor_role_row = db.query(RoleModel).filter(
-        func.lower(RoleModel.name) == func.lower(actor.role)
+        func.lower(RoleModel.name) == func.lower(cast(actor.role, String))
     ).first()
     if not actor_role_row:
         raise HTTPException(
@@ -122,7 +123,7 @@ def create_employee(
     
     # Get employee's role rank
     employee_role_row = db.query(RoleModel).filter(
-        func.lower(RoleModel.name) == func.lower(employee_data.role)
+        func.lower(RoleModel.name) == func.lower(cast(employee_data.role, String))
     ).first()
     if not employee_role_row:
         raise HTTPException(
@@ -206,7 +207,7 @@ def create_employee(
 
         manager_role_row = (
             db.query(RoleModel)
-            .filter(func.lower(RoleModel.name) == func.lower(reporting_manager.role))
+            .filter(func.lower(RoleModel.name) == func.lower(cast(reporting_manager.role, String)))
             .first()
         )
         if not manager_role_row:
@@ -311,7 +312,7 @@ def create_employee(
         meta={
             "emp_code": employee.emp_code,
             "name": employee.name,
-            "role": employee.role.value,
+            "role": enum_to_str(employee.role),
             "department_id": employee.department_id
         }
     )
@@ -364,7 +365,7 @@ def delete_employee(
         meta={
             "emp_code": employee.emp_code,
             "name": employee.name,
-            "role": employee.role.value,
+            "role": enum_to_str(employee.role),
             "department_id": employee.department_id
         }
     )
@@ -597,13 +598,13 @@ def update_employee(
 
     role_row = (
         db.query(RoleModel)
-        .filter(func.lower(RoleModel.name) == func.lower(effective_role.value))
+        .filter(func.lower(RoleModel.name) == func.lower(enum_to_str(effective_role)))
         .first()
     )
     if not role_row:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Role configuration not found for {effective_role.value}",
+            detail=f"Role configuration not found for {enum_to_str(effective_role)}",
         )
     employee_rank = role_row.role_rank
 
@@ -652,7 +653,7 @@ def update_employee(
 
         manager_role_row = (
             db.query(RoleModel)
-            .filter(func.lower(RoleModel.name) == func.lower(reporting_manager.role))
+            .filter(func.lower(RoleModel.name) == func.lower(cast(reporting_manager.role, String)))
             .first()
         )
         if not manager_role_row:

@@ -1,3 +1,3 @@
 """
-Utility functions and helpers
+Utility functions for the HRMS application
 """
