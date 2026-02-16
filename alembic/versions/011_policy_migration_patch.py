@@ -162,7 +162,7 @@ def upgrade() -> None:
                 sa.Column('employee_id', sa.Integer(), nullable=False),
                 sa.Column('request_date', sa.Date(), nullable=False),
                 sa.Column('reason', sa.Text(), nullable=True),
-                sa.Column('status', wfh_status_enum, nullable=False, server_default="PENDING"),
+                sa.Column('status', wfh_status_enum, nullable=False, server_default='PENDING'),
                 sa.Column('day_value', sa.Numeric(5, 2), nullable=False, server_default='0.5'),
                 sa.Column('applied_at', sa.DateTime(timezone=True), server_default=datetime_default, nullable=False),
                 sa.Column('approved_by', sa.Integer(), nullable=True),
@@ -176,7 +176,7 @@ def upgrade() -> None:
             )
         else:
             # Create enum type idempotently
-            wfh_status_enum = postgresql.ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', name='wfhstatus')
+            wfh_status_enum = postgresql.ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', name='wfhstatus', create_type=False)
             wfh_status_enum.create(bind, checkfirst=True)
             op.create_table(
                 'wfh_requests',
@@ -184,7 +184,7 @@ def upgrade() -> None:
                 sa.Column('employee_id', sa.Integer(), nullable=False),
                 sa.Column('request_date', sa.Date(), nullable=False),
                 sa.Column('reason', sa.Text(), nullable=True),
-                sa.Column('status', wfh_status_enum, nullable=False, server_default="PENDING"),
+                sa.Column('status', wfh_status_enum, nullable=False, server_default='PENDING'),
                 sa.Column('day_value', sa.Numeric(5, 2), nullable=False, server_default='0.5'),
                 sa.Column('applied_at', sa.DateTime(timezone=True), server_default=datetime_default, nullable=False),
                 sa.Column('approved_by', sa.Integer(), nullable=True),
@@ -210,7 +210,8 @@ def upgrade() -> None:
             json_type = sa.Text()
         else:
             action_type_enum = postgresql.ENUM('DEDUCT_PL_3', 'MARK_ABSCONDED', 'MEDICAL_CERT_MISSING_PENALTY', 
-                                               'CANCEL_APPROVED_LEAVE', 'OTHER', name='hrpolicyactiontype', create_type=True)
+                                               'CANCEL_APPROVED_LEAVE', 'OTHER', name='hrpolicyactiontype', create_type=False)
+            action_type_enum.create(bind, checkfirst=True)
             json_type = postgresql.JSON
         
         op.create_table(
