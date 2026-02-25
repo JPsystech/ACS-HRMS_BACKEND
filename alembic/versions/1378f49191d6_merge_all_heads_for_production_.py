@@ -1,8 +1,8 @@
-"""empty message
+"""Merge all heads for production deployment
 
-Revision ID: d2800c00fafd
+Revision ID: 1378f49191d6
 Revises: 018_fl_and_accrual_ledger, c6a511b65b39, dc6eaf963f24
-Create Date: 2026-02-25 12:19:05.067775
+Create Date: 2026-02-25 12:43:42.084469
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'd2800c00fafd'
+revision: str = '1378f49191d6'
 down_revision: Union[str, None] = ('018_fl_and_accrual_ledger', 'c6a511b65b39', 'dc6eaf963f24')
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
