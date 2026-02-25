@@ -14,7 +14,7 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision: str = '025_combined_password_and_culture'
+revision: str = '025_combined_pwd_culture'
 down_revision: Union[str, None] = '024_add_admin_value_to_role_enum'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

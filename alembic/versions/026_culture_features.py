@@ -15,7 +15,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '026_culture_features'
-down_revision: Union[str, None] = '025_combined_password_and_culture'
+down_revision: Union[str, None] = '025_combined_pwd_culture'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
