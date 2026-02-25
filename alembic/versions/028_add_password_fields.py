@@ -1,24 +1,36 @@
-"""Add password policy fields to employees
+"""Add password policy fields to employees - replaces conflicting migrations
 
-Revision ID: 025_add_password_fields_to_employees
-Revises: 024_add_admin_value_to_role_enum
-Create Date: 2026-02-21
+Revision ID: 028_add_password_fields
+Revises: 017_leave_wallet_balance_and_transactions
+Create Date: 2026-02-25
 
-Adds:
-- must_change_password (bool, default false, not null)
+Adds password policy fields to employees table:
+- must_change_password (bool, default false)
 - password_changed_at (timestamptz, nullable)
 - last_login_at (timestamptz, nullable)
-"""
-from typing import Sequence, Union
 
+"""
 from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision: str = '025_add_password_fields_to_employees'
-down_revision: Union[str, None] = '024_add_admin_value_to_role_enum'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision = str = '028_add_password_fields'
+down_revision = '017_leave_wallet_balance_and_transactions'
+branch_labels = None
+depends_on = None
+
+
+def _has_column(table, column):
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    cols = [c['name'] for c in insp.get_columns(table)]
+    return column in cols
+
+
+def _has_table(name):
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    return name in insp.get_table_names()
 
 
 def upgrade() -> None:
@@ -51,6 +63,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column("employees", "last_login_at")
-    op.drop_column("employees", "password_changed_at")
-    op.drop_column("employees", "must_change_password")
+    if _has_column("employees", "last_login_at"):
+        op.drop_column("employees", "last_login_at")
+    if _has_column("employees", "password_changed_at"):
+        op.drop_column("employees", "password_changed_at")
+    if _has_column("employees", "must_change_password"):
+        op.drop_column("employees", "must_change_password")
