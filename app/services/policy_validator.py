@@ -74,16 +74,21 @@ def get_or_create_policy_settings(db: Session, year: int) -> PolicySetting:
     Returns:
         PolicySetting instance
     """
-    # Ensure 'annual_fl' column exists for local sqlite without running migrations
+    # Ensure 'annual_fl' column exists for LOCAL SQLITE only (skip for PostgreSQL)
     try:
-        rows = db.execute(text("PRAGMA table_info('policy_settings')")).fetchall()
-        col_names = {r[1] for r in rows} if rows else set()
-        if "annual_fl" not in col_names:
-            db.execute(text("ALTER TABLE policy_settings ADD COLUMN annual_fl INTEGER NOT NULL DEFAULT 1"))
-            db.commit()
+        bind = db.get_bind()
+        if bind is not None and getattr(bind.dialect, "name", None) == "sqlite":
+            rows = db.execute(text("PRAGMA table_info('policy_settings')")).fetchall()
+            col_names = {r[1] for r in rows} if rows else set()
+            if "annual_fl" not in col_names:
+                db.execute(text("ALTER TABLE policy_settings ADD COLUMN annual_fl INTEGER NOT NULL DEFAULT 1"))
+                db.commit()
     except Exception:
-        # Ignore if DB is not sqlite or alteration fails; subsequent select may still work on other DBs
-        pass
+        # Roll back failed DDL/PRAGMA so the session is usable on PostgreSQL
+        try:
+            db.rollback()
+        except Exception:
+            pass
     
     policy = db.query(PolicySetting).filter(PolicySetting.year == year).first()
     

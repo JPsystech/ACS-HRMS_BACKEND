@@ -12,6 +12,83 @@ from app.schemas.auth import LoginRequest, TokenResponse, ChangePasswordRequest
 router = APIRouter()
 
 
+@router.post("/login-mobile", response_model=TokenResponse)
+async def login_mobile(
+    login_data: LoginRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Mobile-friendly login endpoint - simplified for mobile apps
+    Returns token without must_change_password complexity
+    """
+    # Find employee by emp_code
+    employee = db.query(Employee).filter(Employee.emp_code == login_data.emp_code).first()
+    
+    if not employee:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid employee code or password"
+        )
+    
+    # Check if employee is active
+    if not employee.active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is inactive"
+        )
+    
+    # Verify password
+    if employee.password_hash is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No password set for this account"
+        )
+    
+    if not verify_password(login_data.password, employee.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid employee code or password"
+        )
+    
+    # Get role_rank
+    from app.models.role import RoleModel
+    role_rank_map = {
+        "ADMIN": 1,
+        "MD": 2,
+        "VP": 3,
+        "MANAGER": 4,
+        "HR": 5,
+        "EMPLOYEE": 99
+    }
+    try:
+        role_model = db.query(RoleModel).filter(
+            RoleModel.name == employee.role
+        ).first()
+        role_rank = role_model.role_rank if role_model else role_rank_map.get(employee.role, 99)
+    except Exception:
+        role_rank = role_rank_map.get(employee.role, 99)
+    
+    # Create access token
+    token_data = {
+        "sub": str(employee.id),
+        "emp_code": employee.emp_code,
+        "role": employee.role,
+        "role_rank": role_rank
+    }
+    access_token = create_access_token(data=token_data)
+    
+    # Update last_login_at
+    try:
+        employee.last_login_at = datetime.utcnow()
+        db.add(employee)
+        db.commit()
+    except Exception:
+        db.rollback()
+    
+    # Return simple token response (always false for mobile)
+    return TokenResponse(access_token=access_token, token_type="bearer", must_change_password=False)
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(
     login_data: LoginRequest,
