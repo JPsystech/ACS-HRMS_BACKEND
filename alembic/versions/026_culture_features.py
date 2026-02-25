@@ -46,8 +46,8 @@ def upgrade() -> None:
             sa.Column("wish_sent_at", sa.DateTime(timezone=True), nullable=True),
             sa.Column("wish_sent_by", sa.Integer(), nullable=True),
             sa.Column("wish_message", sa.Text(), nullable=True),
-            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
-            sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
+            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+            sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
             sa.ForeignKeyConstraint(["employee_id"], ["employees.id"]),
             sa.ForeignKeyConstraint(["wish_sent_by"], ["employees.id"]),
         )

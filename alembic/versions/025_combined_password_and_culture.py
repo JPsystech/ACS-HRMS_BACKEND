@@ -42,11 +42,11 @@ def upgrade() -> None:
     if "must_change_password" not in existing_cols:
         op.add_column(
             "employees",
-            sa.Column("must_change_password", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+            sa.Column("must_change_password", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         )
         # Normalize default for Postgres (true/false) vs SQLite (1/0)
         try:
-            op.execute(sa.text("UPDATE employees SET must_change_password = 0 WHERE must_change_password IS NULL"))
+            op.execute(sa.text("UPDATE employees SET must_change_password = false WHERE must_change_password IS NULL"))
         except Exception:
             pass
 
@@ -80,8 +80,8 @@ def upgrade() -> None:
             sa.Column("wish_sent_at", sa.DateTime(timezone=True), nullable=True),
             sa.Column("wish_sent_by", sa.Integer(), nullable=True),
             sa.Column("wish_message", sa.Text(), nullable=True),
-            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
-            sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
+            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+            sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
             sa.ForeignKeyConstraint(["employee_id"], ["employees.id"]),
             sa.ForeignKeyConstraint(["wish_sent_by"], ["employees.id"]),
         )
