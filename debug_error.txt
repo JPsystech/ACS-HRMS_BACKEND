@@ -1,0 +1,1 @@
+Error detail: {'error': True, 'status_code': 403, 'detail': 'You do not have approval authority for this leave request', 'path': '/api/v1/leaves/1/approve'}
