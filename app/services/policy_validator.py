@@ -93,8 +93,8 @@ def get_or_create_policy_settings(db: Session, year: int) -> PolicySetting:
     policy = db.query(PolicySetting).filter(PolicySetting.year == year).first()
     
     if not policy:
-        # Default ACS policy (2026 final): PL=6, CL=5, SL=6, RH=1, FL=1
-        annual_pl = 6
+        # Default ACS policy (2026 final): PL=7, CL=5, SL=6, RH=1, FL=1
+        annual_pl = 7
         annual_cl = 5
         annual_sl = 6
         policy = PolicySetting(

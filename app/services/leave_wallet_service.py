@@ -123,6 +123,9 @@ def compute_accrual(
     fl_cap = ent["fl"]
     cl_accrued = min(cl_cap, cl_credits)
     pl_accrued = min(pl_cap, pl_credits)
+    # December PL bonus (+1) once per year when processing December of the same year
+    if as_of.year == year and as_of.month == 12:
+        pl_accrued = min(pl_cap, pl_accrued + 1.0)
     sl_accrued = min(sl_cap, sl_credits)
     fl_accrued = min(fl_cap, fl_credits)
     rh_entitlement = ent["rh"]

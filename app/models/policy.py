@@ -12,8 +12,8 @@ class PolicySetting(Base):
     id = Column(Integer, primary_key=True, index=True)
     year = Column(Integer, nullable=False, unique=True)  # e.g., 2026
     
-    # ACS (2026) annual entitlements per year (Jan–Dec): PL=6, CL=5, SL=6, RH=1, FL=1
-    annual_pl = Column(Integer, nullable=False, default=6)
+    # ACS (2026) annual entitlements per year (Jan–Dec): PL=7, CL=5, SL=6, RH=1, FL=1
+    annual_pl = Column(Integer, nullable=False, default=7)
     annual_cl = Column(Integer, nullable=False, default=5)
     annual_sl = Column(Integer, nullable=False, default=6)
     annual_rh = Column(Integer, nullable=False, default=1)

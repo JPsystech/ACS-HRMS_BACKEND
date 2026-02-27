@@ -571,11 +571,13 @@ def apply_leave(
             bal = wallet.get_wallet_balances(db, employee_id, year)
             available_map = {b.leave_type: float(b.remaining) for b in bal}
             available = available_map.get(leave_type, 0.0)
-            if computed_days > available and not override_policy:
+            if leave_type == LeaveType.RH and computed_days > available and not override_policy:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Insufficient accrued leave balance"
+                    detail="Insufficient RH entitlement for the requested date"
                 )
+    else:
+        available = 0.0
     
     # Convert by_month dict to JSON string for storage
     computed_days_by_month_json = json.dumps(by_month) if by_month else None
@@ -591,8 +593,8 @@ def apply_leave(
         status=LeaveStatus.PENDING,
         computed_days=Decimal(str(computed_days)),
         computed_days_by_month=computed_days_by_month_json,
-        paid_days=Decimal('0'),
-        lwp_days=Decimal('0'),
+        paid_days=(compute_split(leave_type, computed_days, available)[0] if leave_type in WALLET_LEAVE_TYPES and leave_type != LeaveType.RH else Decimal('0')),
+        lwp_days=(compute_split(leave_type, computed_days, available)[1] if leave_type in WALLET_LEAVE_TYPES and leave_type != LeaveType.RH else Decimal('0')),
         override_policy=override_policy,
         override_remark=override_remark,
         auto_converted_to_lwp=(auto_lwp_reason is not None),
@@ -710,6 +712,20 @@ def list_leaves(
     
     # Order by applied_at descending (most recent first)
     return query.order_by(LeaveRequest.applied_at.desc()).all()
+
+
+def compute_split(
+    leave_type: LeaveType,
+    requested_days: float,
+    remaining: float
+) -> tuple[Decimal, Decimal]:
+    if requested_days <= 0:
+        return Decimal('0'), Decimal('0')
+    if leave_type == LeaveType.RH:
+        return Decimal('0'), Decimal('0')
+    paid = max(0.0, min(remaining, requested_days))
+    lwp = max(0.0, requested_days - paid)
+    return Decimal(str(paid)), Decimal(str(lwp))
 
 
 def get_or_create_balance(

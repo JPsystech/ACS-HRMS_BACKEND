@@ -363,6 +363,7 @@ def get_leave_rows(
             "from_date": str(leave_request.from_date),
             "to_date": str(leave_request.to_date),
             "status": leave_request.status.value,
+            "requested_days": str(float(leave_request.computed_days)),
             "computed_days": str(float(leave_request.computed_days)),
             "paid_days": str(float(leave_request.paid_days)) if leave_request.paid_days else "0",
             "lwp_days": str(float(leave_request.lwp_days)) if leave_request.lwp_days else "0",

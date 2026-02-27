@@ -161,6 +161,7 @@ async def export_leaves_csv(
         "from_date",
         "to_date",
         "status",
+        "requested_days",
         "computed_days",
         "paid_days",
         "lwp_days",
