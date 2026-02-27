@@ -29,6 +29,7 @@ from app.services.attendance_session_service import (
     list_my_sessions,
 )
 from app.utils.datetime_utils import now_utc, iso_8601_utc, iso_ist, to_ist
+from app.services.attendance_daily_service import get_streak_and_consistency
 
 router = APIRouter()
 _log = logging.getLogger(__name__)
@@ -228,6 +229,34 @@ async def my_endpoint(
         total=len(sessions),
     )
 
+
+@router.get("/streak")
+async def streak_endpoint(
+    window: int = Query(30, ge=1, le=120),
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_user),
+):
+    """
+    Attendance streak and consistency for current user over last N working days (IST),
+    skipping Sundays and active holidays.
+    """
+    streak, consistency, work_days, good_days = get_streak_and_consistency(
+        db=db, user_id=current_user.id, window=window
+    )
+    return {
+        "current_streak_days": streak,
+        "consistency_percent": consistency,
+        "window_days": work_days,
+        "good_days": good_days,
+        "work_days": work_days,
+        "rule": {
+            "shift_start": "09:30",
+            "good_before": "10:00",
+            "timezone": "Asia/Kolkata",
+            "weekly_off": "Sunday",
+            "holiday_excluded": True,
+        },
+    }
 
 @router.get("/today-scope", response_model=SessionListResponse)
 async def today_scope_endpoint(

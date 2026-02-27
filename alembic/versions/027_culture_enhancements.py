@@ -3,7 +3,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = "027_culture_enhancements"
-down_revision: Union[str, None] = "026_culture_features"
+down_revision: Union[str, Sequence[str], None] = ("026_culture_features", "026_culture_pack")
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

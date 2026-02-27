@@ -12,7 +12,7 @@ from app.models.attendance_session import AttendanceSession
 from app.models.leave import LeaveRequest, LeaveStatus, LeaveType
 from app.models.department import Department
 from app.models.compoff import CompoffRequest, CompoffRequestStatus
-from app.services.leave_service import get_subordinate_ids
+from app.services.leave_service import get_subordinate_ids, get_role_rank
 
 
 def get_attendance_rows(
@@ -61,11 +61,12 @@ def get_attendance_rows(
         AttendanceSession.work_date <= to_date,
     )
 
-    # Apply role-based scoping (same rules as legacy AttendanceLog)
+    # Apply role-based scoping using role_rank
     session_results: List[Dict] = []
+    current_user_rank = get_role_rank(db, current_user)
 
-    if current_user.role == Role.HR:
-        # HR can see all
+    if current_user_rank <= 3:
+        # ADMIN/MD/VP (and HR configured as high-privilege): all employees
         if employee_id:
             session_query = session_query.filter(Employee.id == employee_id)
         if department_id:
@@ -73,53 +74,42 @@ def get_attendance_rows(
         session_results = session_query.order_by(
             AttendanceSession.work_date, Employee.emp_code
         ).all()
-    elif current_user.role == Role.MANAGER:
-        # MANAGER can see full hierarchical subtree (direct and indirect reports)
-        subordinate_ids = get_subordinate_ids(db, current_user.id)
-        
-        # Include manager's own attendance in the visible set
-        subordinate_ids.append(current_user.id)
-
-        if not subordinate_ids:
+    elif current_user_rank == 4:
+        # MANAGER: subtree + self
+        subordinate_ids = get_subordinate_ids(db, current_user.id) or []
+        visible_ids = [current_user.id] + subordinate_ids
+        if not visible_ids:
             session_results = []
         else:
-            session_query = session_query.filter(Employee.id.in_(subordinate_ids))
-
+            session_query = session_query.filter(Employee.id.in_(visible_ids))
             if employee_id:
-                if employee_id not in subordinate_ids:
+                if employee_id not in visible_ids:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail="You can only export attendance for employees in your reporting hierarchy"
+                        detail="You can only export attendance for employees in your reporting hierarchy",
                     )
                 session_query = session_query.filter(Employee.id == employee_id)
-
-            # MANAGER cannot filter by department_id (only HR)
             if department_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only HR can filter by department",
+                    detail="Only HR/ADMIN can filter by department",
                 )
-
             session_results = session_query.order_by(
                 AttendanceSession.work_date, Employee.emp_code
             ).all()
     else:
-        # EMPLOYEE can see only their own
+        # EMPLOYEE: only self
         session_query = session_query.filter(Employee.id == current_user.id)
-
         if employee_id and employee_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only export your own attendance",
             )
-
-        # EMPLOYEE cannot filter by department_id
         if department_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only HR can filter by department",
+                detail="Only HR/ADMIN can filter by department",
             )
-
         session_results = session_query.order_by(
             AttendanceSession.work_date, Employee.emp_code
         ).all()
@@ -168,55 +158,41 @@ def get_attendance_rows(
         AttendanceLog.punch_date <= to_date,
     )
 
-    # Apply role-based scoping for legacy logs
-    if current_user.role == Role.HR:
-        # HR can see all
+    # Apply role-rank scoping for legacy logs
+    if current_user_rank <= 3:
         if employee_id:
             query = query.filter(Employee.id == employee_id)
         if department_id:
             query = query.filter(Department.id == department_id)
-    elif current_user.role == Role.MANAGER:
-        # MANAGER can see only direct reportees
-        reportee_ids = [
-            emp_id for (emp_id,) in db.query(Employee.id).filter(
-                Employee.reporting_manager_id == current_user.id
-            ).all()
-        ]
-        
-        if not reportee_ids:
-            return []  # No reportees
-        
-        query = query.filter(Employee.id.in_(reportee_ids))
-        
+    elif current_user_rank == 4:
+        subordinate_ids = get_subordinate_ids(db, current_user.id) or []
+        visible_ids = [current_user.id] + subordinate_ids
+        if not visible_ids:
+            return []
+        query = query.filter(Employee.id.in_(visible_ids))
         if employee_id:
-            if employee_id not in reportee_ids:
+            if employee_id not in visible_ids:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You can only export attendance for your direct reportees"
+                    detail="You can only export attendance for your direct reportees",
                 )
             query = query.filter(Employee.id == employee_id)
-        
-        # MANAGER cannot filter by department_id (only HR)
         if department_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only HR can filter by department"
+                detail="Only HR/ADMIN can filter by department",
             )
     else:
-        # EMPLOYEE can see only their own
         query = query.filter(Employee.id == current_user.id)
-        
         if employee_id and employee_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only export your own attendance"
+                detail="You can only export your own attendance",
             )
-        
-        # EMPLOYEE cannot filter by department_id
         if department_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only HR can filter by department"
+                detail="Only HR/ADMIN can filter by department",
             )
     
     # Execute query and build rows
@@ -295,54 +271,42 @@ def get_leave_rows(
         LeaveRequest.from_date <= to_date
     )
     
-    # Apply role-based scoping
-    if current_user.role == Role.HR:
-        # HR can see all
+    # Apply role-based scoping via role_rank
+    current_user_rank = get_role_rank(db, current_user)
+    if current_user_rank <= 3:
         if employee_id:
             query = query.filter(Employee.id == employee_id)
         if department_id:
             query = query.filter(Department.id == department_id)
-    elif current_user.role == Role.MANAGER:
-        # MANAGER can see full hierarchical subtree (direct and indirect reports)
-        subordinate_ids = get_subordinate_ids(db, current_user.id)
-        
-        # Include manager's own leaves in the visible set
-        subordinate_ids.append(current_user.id)
-        
-        if not subordinate_ids:
-            return []  # No subordinates
-        
-        query = query.filter(Employee.id.in_(subordinate_ids))
-        
+    elif current_user_rank == 4:
+        subordinate_ids = get_subordinate_ids(db, current_user.id) or []
+        visible_ids = [current_user.id] + subordinate_ids
+        if not visible_ids:
+            return []
+        query = query.filter(Employee.id.in_(visible_ids))
         if employee_id:
-            if employee_id not in subordinate_ids:
+            if employee_id not in visible_ids:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You can only export leaves for employees in your reporting hierarchy"
+                    detail="You can only export leaves for employees in your reporting hierarchy",
                 )
             query = query.filter(Employee.id == employee_id)
-        
-        # MANAGER cannot filter by department_id (only HR)
         if department_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only HR can filter by department"
+                detail="Only HR/ADMIN can filter by department",
             )
     else:
-        # EMPLOYEE can see only their own
         query = query.filter(Employee.id == current_user.id)
-        
         if employee_id and employee_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only export your own leaves"
+                detail="You can only export your own leaves",
             )
-        
-        # EMPLOYEE cannot filter by department_id
         if department_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only HR can filter by department"
+                detail="Only HR/ADMIN can filter by department",
             )
     
     # Apply optional filters
@@ -457,25 +421,19 @@ def get_compoff_rows(
         CompoffRequest.worked_date <= to_date
     )
     
-    # Apply role-based scoping
-    if current_user.role == Role.HR:
-        # HR can see all
+    # Apply role-based scoping (role_rank)
+    current_user_rank = get_role_rank(db, current_user)
+    if current_user_rank <= 3:
         if employee_id:
             query = query.filter(Employee.id == employee_id)
-    elif current_user.role == Role.MANAGER:
-        # MANAGER can see full hierarchical subtree (direct and indirect reports)
-        subordinate_ids = get_subordinate_ids(db, current_user.id)
-        
-        # Include manager's own compoff in the visible set
-        subordinate_ids.append(current_user.id)
-        
-        if not subordinate_ids:
+    elif current_user_rank == 4:
+        subordinate_ids = get_subordinate_ids(db, current_user.id) or []
+        visible_ids = [current_user.id] + subordinate_ids
+        if not visible_ids:
             return []  # No subordinates
-        
-        query = query.filter(Employee.id.in_(subordinate_ids))
-        
+        query = query.filter(Employee.id.in_(visible_ids))
         if employee_id:
-            if employee_id not in subordinate_ids:
+            if employee_id not in visible_ids:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="You can only export comp-off requests for employees in your reporting hierarchy"
@@ -484,7 +442,6 @@ def get_compoff_rows(
     else:
         # EMPLOYEE can see only their own
         query = query.filter(Employee.id == current_user.id)
-        
         if employee_id and employee_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

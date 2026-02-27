@@ -1,34 +1,25 @@
-"""Add culture pack features - birthday greetings and employee profile enhancements
-
-Revision ID: 026_culture_features
-Revises: 025_combined_password_and_culture
-Create Date: 2026-02-25
-
-Adds:
-- dob and profile_photo_url columns to employees table
-- birthday_greetings table for tracking birthday wishes
-
-"""
 from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-# revision identifiers, used by Alembic.
-revision: str = '026_culture_features'
-down_revision: Union[str, Sequence[str], None] = ('025_combined_pwd_culture', '025_add_password_fields_to_employees')
+revision: str = "026_culture_pack"
+down_revision: Union[str, None] = "025_combined_pwd_culture"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
 
 def _has_column(table, column):
     bind = op.get_bind()
     insp = sa.inspect(bind)
-    cols = [c['name'] for c in insp.get_columns(table)]
+    cols = [c["name"] for c in insp.get_columns(table)]
     return column in cols
+
 
 def _has_table(name):
     bind = op.get_bind()
     insp = sa.inspect(bind)
     return name in insp.get_table_names()
+
 
 def upgrade() -> None:
     if _has_table("employees"):
@@ -52,6 +43,7 @@ def upgrade() -> None:
             sa.ForeignKeyConstraint(["wish_sent_by"], ["employees.id"]),
         )
         op.create_unique_constraint("uq_birthday_employee_date", "birthday_greetings", ["employee_id", "date"])
+
 
 def downgrade() -> None:
     if _has_table("birthday_greetings"):

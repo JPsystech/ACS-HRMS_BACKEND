@@ -28,3 +28,16 @@ class ThemeResponse(BaseModel):
 class WishRequest(BaseModel):
     message: Optional[str] = None
     wish_message: Optional[str] = None
+
+class WishOut(BaseModel):
+    id: Optional[int] = None
+    sender_id: int
+    sender_name: Optional[str] = None
+    message: Optional[str] = None
+    created_at: Optional[str] = None
+    reply_message: Optional[str] = None
+    replied_at: Optional[str] = None
+
+class WishListResponse(BaseModel):
+    items: list[WishOut]
+    total: int

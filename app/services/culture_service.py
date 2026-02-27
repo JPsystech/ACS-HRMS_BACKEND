@@ -5,10 +5,12 @@ from sqlalchemy import and_
 from app.models.employee import Employee
 from app.models.birthday_greeting import BirthdayGreeting
 from app.services.storage_service import StorageService
+from typing import Optional
+from app.utils.datetime_utils import now_utc, to_ist
 
 def list_birthdays_today(db: Session) -> List[Tuple[Employee]]:
     items = db.query(Employee).filter(Employee.dob.isnot(None), Employee.active == True).all()
-    today = date.today()
+    today = to_ist(now_utc()).date()
     result = []
     for e in items:
         if e.dob and e.dob.month == today.month and e.dob.day == today.day:
@@ -17,7 +19,7 @@ def list_birthdays_today(db: Session) -> List[Tuple[Employee]]:
 
 def list_birthdays_upcoming(db: Session, days: int) -> List[Employee]:
     items = db.query(Employee).filter(Employee.dob.isnot(None), Employee.active == True).all()
-    today = date.today()
+    today = to_ist(now_utc()).date()
     upcoming = []
     for e in items:
         if not e.dob:
@@ -83,7 +85,7 @@ def generate_greeting_image(name: str, message: Optional[str] = None) -> bytes:
         return b""
 
 def create_or_get_greeting(db: Session, employee_id: int, message: Optional[str]) -> Tuple[BirthdayGreeting, bool]:
-    today = date.today()
+    today = to_ist(now_utc()).date()
     e = db.query(Employee).filter(Employee.id == employee_id).first()
     if e and e.dob:
         m = e.dob.month
@@ -104,12 +106,18 @@ def create_or_get_greeting(db: Session, employee_id: int, message: Optional[str]
     db.refresh(rec)
     return rec, True
 
-def upload_greeting_and_update(db: Session, greeting: BirthdayGreeting, name: str, message: Optional[str] = None) -> BirthdayGreeting:
+def upload_greeting_and_update(
+    db: Session,
+    greeting: BirthdayGreeting,
+    name: str,
+    message: Optional[str] = None,
+    base_url: Optional[str] = None,
+) -> BirthdayGreeting:
     content = generate_greeting_image(name, message)
     storage = StorageService()
     year = greeting.date.year
     path = f"greetings/{greeting.employee_id}/{year}/birthday.png"
-    url = storage.upload_bytes("greetings", path, content, "image/png")
+    url = storage.upload_bytes("greetings", path, content, "image/png", base_url=base_url)
     greeting.greeting_image_url = url
     db.add(greeting)
     db.commit()

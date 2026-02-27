@@ -24,6 +24,7 @@ from app.models.manager_department import ManagerDepartment
 from app.services.audit_service import log_audit
 from app.utils.json_serializer import sanitize_for_json
 from app.utils.datetime_utils import now_utc, ensure_utc
+from app.services.attendance_daily_service import upsert_daily_on_punch_in
 
 TZ = ZoneInfo("Asia/Kolkata")
 
@@ -114,6 +115,14 @@ def punch_in(
     db.add(event)
     db.commit()
     db.refresh(session)
+
+    # Upsert attendance_daily summary for streak/consistency
+    try:
+        upsert_daily_on_punch_in(db=db, user_id=employee_id, punch_in_at_utc=session.punch_in_at)
+        db.commit()
+    except Exception:
+        db.rollback()
+        _log.exception("Failed to upsert attendance_daily for user_id=%s", employee_id)
 
     log_audit(
         db=db,
