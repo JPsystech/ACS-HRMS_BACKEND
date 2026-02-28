@@ -20,6 +20,7 @@ from app.schemas.employee import (
 from app.core.security import hash_password
 from app.utils.enums import enum_to_str
 from app.services.audit_service import log_audit
+from app.services.r2_storage import get_r2_storage_service
 
 
 def _check_reporting_hierarchy_cycle(
@@ -493,12 +494,21 @@ def get_employee_me(db: Session, employee_id: int) -> Optional[EmployeeMeOut]:
     
     emp, role_rank = result[0], result[1]
     
+    # Dynamically generate pre-signed URL if photo_key is present
+    photo_url = emp.profile_photo_url
+    if emp.photo_key:
+        try:
+            r2_service = get_r2_storage_service()
+            photo_url = r2_service.get_presigned_url(emp.photo_key)
+        except Exception:
+            pass
+    
     return EmployeeMeOut(
         id=emp.id,
         emp_code=emp.emp_code,
         name=emp.name,
         dob=emp.dob,
-        profile_photo_url=emp.profile_photo_url,
+        profile_photo_url=photo_url,
         mobile_number=emp.mobile_number,
         department=DepartmentRef.model_validate(emp.department) if emp.department else None,
         reporting_manager=ReportingManagerRef.model_validate(emp.reporting_manager) if emp.reporting_manager else None,
@@ -523,12 +533,21 @@ def _employee_to_employee_out(employee: Employee) -> EmployeeOut:
         if hasattr(employee, '_role_rank'):
             role_rank = getattr(employee, '_role_rank', None)
     
+    # Dynamically generate pre-signed URL if photo_key is present
+    photo_url = employee.profile_photo_url
+    if employee.photo_key:
+        try:
+            r2_service = get_r2_storage_service()
+            photo_url = r2_service.get_presigned_url(employee.photo_key)
+        except Exception:
+            pass
+            
     return EmployeeOut(
         id=employee.id,
         emp_code=employee.emp_code,
         name=employee.name,
         dob=employee.dob,
-        profile_photo_url=employee.profile_photo_url,
+        profile_photo_url=photo_url,
         mobile_number=employee.mobile_number,
         role=employee.role,
         role_rank=role_rank,

@@ -12,7 +12,6 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.router import api_router
 from app.core.config import settings
 from app.core.errors import (
     http_exception_handler,
@@ -20,6 +19,12 @@ from app.core.errors import (
     generic_exception_handler
 )
 from app.core.logging import setup_logging
+
+# Setup logging first
+setup_logging()
+logger = logging.getLogger(__name__)
+
+from app.api.router import api_router
 from app.core.security import hash_password
 from app.db.session import SessionLocal
 from app.models.employee import Employee, WorkMode
@@ -28,10 +33,6 @@ from app.models.role import RoleModel
 from app.constants import ROLE_ADMIN, ROLE_HR
 from datetime import date
 from sqlalchemy.exc import OperationalError
-
-# Setup logging first
-setup_logging()
-logger = logging.getLogger(__name__)
 
 
 def _mask_database_url(url: str) -> str:

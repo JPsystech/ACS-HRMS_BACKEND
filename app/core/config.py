@@ -3,6 +3,7 @@ Configuration management for ACS HRMS Backend
 """
 from pydantic_settings import BaseSettings
 from pydantic import Field, field_validator
+from pydantic_settings import SettingsConfigDict
 from typing import Optional, List
 import os
 
@@ -44,6 +45,12 @@ class Settings(BaseSettings):
         default="http://127.0.0.1:8000",
         description="Public base URL for serving static files and generating absolute URLs"
     )
+
+    # R2 Cloudflare Object Storage settings
+    R2_ENDPOINT: Optional[str] = Field(default=None, description="Cloudflare R2 endpoint URL")
+    R2_ACCESS_KEY_ID: Optional[str] = Field(default=None, description="Cloudflare R2 access key ID")
+    R2_SECRET_ACCESS_KEY: Optional[str] = Field(default=None, description="Cloudflare R2 secret access key")
+    R2_BUCKET: Optional[str] = Field(default=None, description="Cloudflare R2 bucket name")
     
     # Initial admin bootstrap settings
     INITIAL_ADMIN_EMAIL: str = Field(
@@ -55,10 +62,7 @@ class Settings(BaseSettings):
         description="Password for initial admin user (used when no admin exists)"
     )
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="forbid")
     
     @field_validator("APP_ENV")
     @classmethod

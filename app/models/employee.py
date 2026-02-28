@@ -38,6 +38,7 @@ class Employee(Base):
     last_login_at = Column(DateTime(timezone=True), nullable=True)
     dob = Column(Date, nullable=True)
     profile_photo_url = Column(Text, nullable=True)
+    photo_key = Column(Text, nullable=True)  # R2 object key for profile photo
     profile_photo_updated_at = Column(DateTime(timezone=True), nullable=True)
     join_date = Column(Date, nullable=False)
     active = Column(Boolean, default=True, nullable=False)

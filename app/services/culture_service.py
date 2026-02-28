@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from app.models.employee import Employee
 from app.models.birthday_greeting import BirthdayGreeting
-from app.services.storage_service import StorageService
+from app.services.r2_storage import get_r2_storage_service
 from typing import Optional
 from app.utils.datetime_utils import now_utc, to_ist
 
@@ -114,11 +114,33 @@ def upload_greeting_and_update(
     base_url: Optional[str] = None,
 ) -> BirthdayGreeting:
     content = generate_greeting_image(name, message)
-    storage = StorageService()
     year = greeting.date.year
-    path = f"greetings/{greeting.employee_id}/{year}/birthday.png"
-    url = storage.upload_bytes("greetings", path, content, "image/png", base_url=base_url)
-    greeting.greeting_image_url = url
+    object_key = f"greetings/{greeting.employee_id}/{year}/birthday.png"
+    
+    # Upload to R2
+    try:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Uploading greeting: key={object_key}, size={len(content)}")
+        
+        r2_service = get_r2_storage_service()
+        success = r2_service.upload_file(
+            file_data=content,
+            object_key=object_key,
+            content_type="image/png"
+        )
+        
+        if success:
+            greeting.greeting_image_url = f"/api/v1/culture/greeting-image/{greeting.employee_id}/{year}"
+        else:
+            greeting.greeting_image_url = None
+            
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to upload greeting: {e}")
+        greeting.greeting_image_url = None
+    
     db.add(greeting)
     db.commit()
     db.refresh(greeting)

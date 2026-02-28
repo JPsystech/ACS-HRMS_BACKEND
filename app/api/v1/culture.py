@@ -1,15 +1,16 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query, Request, Response, Form
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from datetime import date, datetime
-from app.utils.datetime_utils import now_utc, to_ist
 from app.core.deps import get_db, get_current_user
 from app.models.employee import Employee
 from app.schemas.culture import BirthdayListResponse, BirthdayEmployee, GreetingRequest, ThemeResponse, WishRequest, WishOut, WishListResponse
 from app.services.culture_service import list_birthdays_today, list_birthdays_upcoming, create_or_get_greeting, upload_greeting_and_update
-from app.services.storage_service import StorageService
+from app.services.r2_storage import get_r2_storage_service
 from app.models.birthday_greeting import BirthdayGreeting
 from app.models.birthday_wish import BirthdayWish
+from app.core.time_utils import now_utc, to_ist
 
 router = APIRouter()
 
@@ -199,18 +200,51 @@ async def update_profile_me(name: Optional[str] = Form(None), dob: Optional[str]
     db.refresh(e)
     return {"ok": True}
 
-@router.post("/employees/me/photo")
-async def upload_profile_photo(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: Employee = Depends(get_current_user)):
-    e = db.query(Employee).filter(Employee.id == current_user.id).first()
-    if not e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    data = await file.read()
-    storage = StorageService()
-    path = f"profile-photos/{e.id}/avatar.jpg"
-    url = storage.upload_bytes("profile-photos", path, data, file.content_type or "image/jpeg")
-    e.profile_photo_url = url
-    e.profile_photo_updated_at = datetime.utcnow()
-    db.add(e)
-    db.commit()
-    db.refresh(e)
-    return {"profile_photo_url": url}
+@router.get("/culture/greeting-image/{employee_id}/{year}")
+async def get_greeting_image(
+    employee_id: int,
+    year: int,
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_user)
+):
+    """Serve birthday greeting image from R2 storage"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Get greeting from database
+    greeting = db.query(BirthdayGreeting).filter(
+        BirthdayGreeting.employee_id == employee_id,
+        BirthdayGreeting.date == date(year, 1, 1)  # January 1st of the year
+    ).first()
+    
+    if not greeting or not greeting.greeting_image_url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Greeting image not found")
+    
+    try:
+        # Construct R2 object key
+        object_key = f"greetings/{employee_id}/{year}/birthday.png"
+        logger.debug(f"Fetching greeting image: {object_key}")
+        
+        # Get image from R2
+        r2_service = get_r2_storage_service()
+        file_data = r2_service.get_file(object_key)
+        if file_data is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found in storage")
+        
+        # Return image with proper headers
+        headers = {
+            "Cache-Control": "public, max-age=86400",  # 24 hours cache
+            "Content-Type": "image/png",
+        }
+        
+        return StreamingResponse(
+            iter([file_data]),
+            headers=headers,
+            media_type="image/png"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving greeting image: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to serve image")
