@@ -495,13 +495,17 @@ def get_employee_me(db: Session, employee_id: int) -> Optional[EmployeeMeOut]:
     emp, role_rank = result[0], result[1]
     
     # Dynamically generate pre-signed URL if photo_key is present
-    photo_url = emp.profile_photo_url
+    photo_url = None
     if emp.photo_key:
         try:
             r2_service = get_r2_storage_service()
             photo_url = r2_service.get_presigned_url(emp.photo_key)
         except Exception:
             pass
+    
+    # Fallback to profile_photo_url only if no photo_key
+    if not photo_url:
+        photo_url = emp.profile_photo_url
     
     return EmployeeMeOut(
         id=emp.id,
@@ -534,7 +538,7 @@ def _employee_to_employee_out(employee: Employee) -> EmployeeOut:
             role_rank = getattr(employee, '_role_rank', None)
     
     # Dynamically generate pre-signed URL if photo_key is present
-    photo_url = employee.profile_photo_url
+    photo_url = None
     if employee.photo_key:
         try:
             r2_service = get_r2_storage_service()
@@ -542,6 +546,10 @@ def _employee_to_employee_out(employee: Employee) -> EmployeeOut:
         except Exception:
             pass
             
+    # Fallback to profile_photo_url only if no photo_key
+    if not photo_url:
+        photo_url = employee.profile_photo_url
+
     return EmployeeOut(
         id=employee.id,
         emp_code=employee.emp_code,

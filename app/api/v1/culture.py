@@ -26,7 +26,19 @@ async def birthdays_today(db: Session = Depends(get_db), current_user: Employee 
         bday = to_ist(now_utc()).date()
         rec = db.query(BirthdayGreeting).filter(BirthdayGreeting.employee_id == e.id, BirthdayGreeting.date == bday).first()
         wish_status = "Sent" if rec and rec.wish_sent_at else "Pending"
-        items.append(BirthdayEmployee(employee_id=e.id, name=e.name, emp_code=e.emp_code, department=dept, profile_photo_url=e.profile_photo_url, dob=e.dob, birthday_date=bday, wish_status=wish_status))
+        
+        # Dynamically generate photo URL
+        photo_url = None
+        if e.photo_key:
+            try:
+                r2_service = get_r2_storage_service()
+                photo_url = r2_service.get_presigned_url(e.photo_key)
+            except Exception:
+                pass
+        if not photo_url:
+            photo_url = e.profile_photo_url
+            
+        items.append(BirthdayEmployee(employee_id=e.id, name=e.name, emp_code=e.emp_code, department=dept, profile_photo_url=photo_url, dob=e.dob, birthday_date=bday, wish_status=wish_status))
     return BirthdayListResponse(items=items, total=len(items))
 
 @router.get("/culture/birthdays/upcoming", response_model=BirthdayListResponse)
@@ -53,7 +65,19 @@ async def birthdays_upcoming(days: int = Query(7, ge=1, le=30), db: Session = De
                 bday = date(ny, 2, 28)
         rec = db.query(BirthdayGreeting).filter(BirthdayGreeting.employee_id == e.id, BirthdayGreeting.date == bday).first()
         wish_status = "Sent" if rec and rec.wish_sent_at else "Pending"
-        items.append(BirthdayEmployee(employee_id=e.id, name=e.name, emp_code=e.emp_code, department=dept, profile_photo_url=e.profile_photo_url, dob=e.dob, birthday_date=bday, wish_status=wish_status))
+        
+        # Dynamically generate photo URL
+        photo_url = None
+        if e.photo_key:
+            try:
+                r2_service = get_r2_storage_service()
+                photo_url = r2_service.get_presigned_url(e.photo_key)
+            except Exception:
+                pass
+        if not photo_url:
+            photo_url = e.profile_photo_url
+            
+        items.append(BirthdayEmployee(employee_id=e.id, name=e.name, emp_code=e.emp_code, department=dept, profile_photo_url=photo_url, dob=e.dob, birthday_date=bday, wish_status=wish_status))
     return BirthdayListResponse(items=items, total=len(items))
 
 @router.post("/culture/birthday/{employee_id}/generate-greeting")
