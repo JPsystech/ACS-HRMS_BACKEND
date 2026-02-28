@@ -3,7 +3,7 @@ Employee schemas
 """
 from datetime import date, datetime
 from typing import Optional
-from pydantic import BaseModel, Field, field_validator, field_serializer, ConfigDict
+from pydantic import BaseModel, Field, field_validator, field_serializer, model_validator, ConfigDict
 from app.models.employee import Role, WorkMode
 
 
@@ -82,6 +82,7 @@ class EmployeeOut(BaseModel):
     name: str
     dob: Optional[date] = None
     profile_photo_url: Optional[str] = None
+    photo_key: Optional[str] = None
     mobile_number: Optional[str] = None
     role: Role
     role_rank: Optional[int] = Field(None, description="Role rank (higher authority = lower number)")
@@ -102,6 +103,20 @@ class EmployeeOut(BaseModel):
         from app.utils.datetime_utils import iso_ist
         return iso_ist(dt) if dt is not None else None
 
+    @model_validator(mode="after")
+    def set_dynamic_photo_url(self) -> "EmployeeOut":
+        """Generate dynamic R2 pre-signed URL if photo_key is present"""
+        if self.photo_key:
+            try:
+                from app.services.r2_storage import get_r2_storage_service
+                r2_service = get_r2_storage_service()
+                presigned_url = r2_service.get_presigned_url(self.photo_key)
+                if presigned_url:
+                    self.profile_photo_url = presigned_url
+            except Exception:
+                pass
+        return self
+
 
 class EmployeeMeOut(BaseModel):
     """Schema for GET /employees/me - current user profile with nested refs."""
@@ -119,8 +134,23 @@ class EmployeeMeOut(BaseModel):
     join_date: date
     is_active: bool
     work_mode: WorkMode
+    photo_key: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="after")
+    def set_dynamic_photo_url(self) -> "EmployeeMeOut":
+        """Generate dynamic R2 pre-signed URL if photo_key is present"""
+        if self.photo_key:
+            try:
+                from app.services.r2_storage import get_r2_storage_service
+                r2_service = get_r2_storage_service()
+                presigned_url = r2_service.get_presigned_url(self.photo_key)
+                if presigned_url:
+                    self.profile_photo_url = presigned_url
+            except Exception:
+                pass
+        return self
 
 
 class PasswordReset(BaseModel):

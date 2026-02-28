@@ -33,6 +33,7 @@ from app.models.role import RoleModel
 from app.constants import ROLE_ADMIN, ROLE_HR
 from datetime import date
 from sqlalchemy.exc import OperationalError
+from app.utils.production_reset import run_production_reset
 
 
 def _mask_database_url(url: str) -> str:
@@ -101,6 +102,20 @@ def bootstrap_initial_admin() -> None:
     Create initial admin user, roles, and department if they don't exist.
     This ensures the system always has at least one admin user.
     """
+    # 1. Handle production reset if requested via environment variable
+    import os
+    if os.getenv("RUN_ONCE_PRODUCTION_RESET") == "true":
+        logger.warning("!!! PRODUCTION RESET TRIGGERED VIA ENV VAR !!!")
+        try:
+            db_reset = SessionLocal()
+            run_production_reset(db_reset)
+            db_reset.close()
+            logger.warning("!!! PRODUCTION RESET SUCCESSFUL !!!")
+            logger.warning("Please REMOVE the RUN_ONCE_PRODUCTION_RESET env var from your dashboard now.")
+        except Exception as e:
+            logger.error("!!! PRODUCTION RESET FAILED: %s !!!", e)
+
+    # 2. Standard Admin Bootstrap
     try:
         db = SessionLocal()
         try:

@@ -40,7 +40,8 @@ async def create_employee_endpoint(
     current_user: Employee = Depends(require_roles(Role.ADMIN))
 ):
     """Create a new employee (ADMIN-only)"""
-    return create_employee(db, employee_data, current_user.id)
+    employee = create_employee(db, employee_data, current_user.id)
+    return _employee_to_employee_out(employee)
 
 
 @router.get("/me", response_model=EmployeeMeOut)
@@ -71,7 +72,8 @@ async def get_my_team_endpoint(
     
     Roles allowed: MANAGER, HR, ADMIN, MD
     """
-    return get_employees_by_reporting_manager(db, current_user.id)
+    team = get_employees_by_reporting_manager(db, current_user.id)
+    return [_employee_to_employee_out(emp) for emp in team]
 
 
 @router.get("", response_model=List[EmployeeOut])
@@ -308,7 +310,8 @@ async def update_employee_endpoint(
     current_user: Employee = Depends(require_roles(Role.ADMIN))
 ):
     """Update an employee (ADMIN-only)"""
-    return update_employee(db, employee_id, employee_data, current_user.id)
+    employee = update_employee(db, employee_id, employee_data, current_user.id)
+    return _employee_to_employee_out(employee)
 
 
 @router.post("/{employee_id}/reset-password", response_model=EmployeeOut)
@@ -319,7 +322,8 @@ async def reset_password_endpoint(
     current_user: Employee = Depends(require_roles(Role.ADMIN))
 ):
     """Reset an employee's password (ADMIN-only)"""
-    return reset_password(db, employee_id, password_data.new_password, current_user.id)
+    employee = reset_password(db, employee_id, password_data.new_password, current_user.id)
+    return _employee_to_employee_out(employee)
 
 
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
