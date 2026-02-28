@@ -62,7 +62,14 @@ class Settings(BaseSettings):
         description="Password for initial admin user (used when no admin exists)"
     )
     
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="forbid")
+    # Load .env from the same directory as this file's parent's parent (project root)
+    _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    _env_file = os.path.join(_project_root, ".env")
+    
+    # Debug: print env file location
+    print(f"--- LOADING ENV FROM: {_env_file} ---")
+    
+    model_config = SettingsConfigDict(env_file=_env_file, env_file_encoding="utf-8", extra="forbid")
     
     @field_validator("APP_ENV")
     @classmethod

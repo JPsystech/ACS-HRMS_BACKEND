@@ -132,6 +132,9 @@ class R2StorageService:
             logger.error(f"Failed to generate pre-signed URL for {object_key}: {e}")
             return None
 
+# Global instance
+r2_storage = R2StorageService()
+
 def get_r2_storage_service() -> R2StorageService:
-    """Returns a new R2StorageService instance."""
-    return R2StorageService()
+    """Returns the global R2StorageService instance."""
+    return r2_storage

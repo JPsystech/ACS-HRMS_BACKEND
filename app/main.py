@@ -82,9 +82,17 @@ app.mount("/storage", StaticFiles(directory="storage"), name="storage")
 
 @app.on_event("startup")
 def startup_log_config() -> None:
-    """Log DATABASE_URL at startup so it can be verified against Alembic."""
-    masked = _mask_database_url(settings.DATABASE_URL)
-    logger.info("DATABASE_URL (app): %s", masked)
+    """Log config at startup for verification."""
+    masked_db = _mask_database_url(settings.DATABASE_URL)
+    logger.info("DATABASE_URL (app): %s", masked_db)
+    
+    # Log R2 configuration status (without secrets)
+    logger.info(
+        "R2 Config: ENDPOINT=%s, ACCESS_KEY=%s, BUCKET=%s",
+        settings.R2_ENDPOINT,
+        bool(settings.R2_ACCESS_KEY_ID),
+        settings.R2_BUCKET
+    )
 
 
 @app.on_event("startup")
