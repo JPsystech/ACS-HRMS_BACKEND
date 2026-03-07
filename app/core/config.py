@@ -59,7 +59,11 @@ class Settings(BaseSettings):
     FCM_SERVICE_ACCOUNT_JSON: Optional[str] = Field(
         default=None,
         description="Path to Firebase service account JSON",
-        validation_alias=AliasChoices("FCM_SERVICE_ACCOUNT_JSON", "FCM_SERVICE_ACCOUNT_PATH"),
+        validation_alias=AliasChoices(
+            "FIREBASE_SERVICE_ACCOUNT_JSON",  # preferred env var
+            "FCM_SERVICE_ACCOUNT_JSON",
+            "FCM_SERVICE_ACCOUNT_PATH",
+        ),
     )
     
     # Initial admin bootstrap settings
