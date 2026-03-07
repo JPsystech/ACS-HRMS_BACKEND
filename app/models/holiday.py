@@ -1,7 +1,7 @@
 """
 Holiday calendar models
 """
-from sqlalchemy import Column, Integer, Date, DateTime, String, Boolean, UniqueConstraint, Index
+from sqlalchemy import Column, Integer, Date, DateTime, String, Boolean, UniqueConstraint, Index, Text
 from sqlalchemy.sql import func
 from app.db.base import Base
 
@@ -14,6 +14,8 @@ class Holiday(Base):
     date = Column(Date, nullable=False, index=True)
     name = Column(String(255), nullable=False)
     active = Column(Boolean, default=True, nullable=False)
+    description = Column(Text, nullable=True)
+    image_key = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.current_timestamp(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.current_timestamp(), onupdate=func.current_timestamp(), nullable=False)
 
@@ -30,6 +32,8 @@ class RestrictedHoliday(Base):
     date = Column(Date, nullable=False, index=True)
     name = Column(String(255), nullable=False)
     active = Column(Boolean, default=True, nullable=False)
+    description = Column(Text, nullable=True)
+    image_key = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.current_timestamp(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.current_timestamp(), onupdate=func.current_timestamp(), nullable=False)
 

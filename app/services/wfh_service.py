@@ -262,7 +262,7 @@ def approve_wfh(
         from app.services.leave_service import get_subordinate_ids
         subordinate_ids = get_subordinate_ids(db, approver.id)
         
-        if leave_request.employee_id not in subordinate_ids:
+        if employee.id not in subordinate_ids:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only approve WFH for your hierarchical subordinates"
@@ -382,6 +382,7 @@ def list_wfh_requests(
     current_user: Employee,
     from_date: Optional[date] = None,
     to_date: Optional[date] = None,
+    department_id: Optional[int] = None,
     employee_id: Optional[int] = None
 ) -> List[WFHRequest]:
     """
@@ -401,27 +402,28 @@ def list_wfh_requests(
     Returns:
         List of WFHRequest instances
     """
+    from app.models.employee import Employee as Emp
     query = db.query(WFHRequest)
     
-    # Apply role-based scope
-    if current_user.role == Role.HR:
-        # HR can see all
-        if employee_id:
+    # Role-based scoping using role_rank hierarchy (consistent with other modules)
+    from app.services.leave_service import get_role_rank, get_subordinate_ids
+    role_rank = get_role_rank(db, current_user)
+    
+    if role_rank <= 3:
+        # ADMIN/MD/VP: can view all
+        if employee_id is not None:
             query = query.filter(WFHRequest.employee_id == employee_id)
-    elif current_user.role == Role.MANAGER:
-        # Manager sees hierarchical subordinates (direct + indirect reports)
-        from app.services.leave_service import get_subordinate_ids
+    elif role_rank == 4:
+        # MANAGER: hierarchical subordinates (direct + indirect)
         subordinate_ids = get_subordinate_ids(db, current_user.id)
         if subordinate_ids:
             query = query.filter(WFHRequest.employee_id.in_(subordinate_ids))
+            if employee_id is not None and employee_id in subordinate_ids:
+                query = query.filter(WFHRequest.employee_id == employee_id)
         else:
-            return []  # No subordinates
-        if employee_id and employee_id in [r[0] for r in db.query(Employee.id).filter(
-            Employee.reporting_manager_id == current_user.id
-        ).all()]:
-            query = query.filter(WFHRequest.employee_id == employee_id)
+            return []
     else:
-        # Employee sees only own
+        # EMPLOYEE and others: only own
         query = query.filter(WFHRequest.employee_id == current_user.id)
     
     # Apply date filters
@@ -429,6 +431,9 @@ def list_wfh_requests(
         query = query.filter(WFHRequest.request_date >= from_date)
     if to_date:
         query = query.filter(WFHRequest.request_date <= to_date)
+    # Department filter (join to Employee)
+    if department_id is not None:
+        query = query.join(Emp, WFHRequest.employee_id == Emp.id).filter(Emp.department_id == department_id)
     
     return query.order_by(WFHRequest.request_date.desc()).all()
 

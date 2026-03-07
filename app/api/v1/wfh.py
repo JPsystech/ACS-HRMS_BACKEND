@@ -98,6 +98,32 @@ async def get_pending_wfh_requests(
     requests = list_pending_wfh_requests(db=db, current_user=current_user)
     return WFHListResponse(items=requests, total=len(requests))
 
+@router.get("/list", response_model=WFHListResponse)
+async def list_wfh_requests_endpoint(
+    from_date: Optional[date] = Query(None, alias="from"),
+    to_date: Optional[date] = Query(None, alias="to"),
+    status: Optional[str] = Query(None, description="PENDING, APPROVED, REJECTED, CANCELLED"),
+    department_id: Optional[int] = Query(None, description="Filter by department ID"),
+    employee_id: Optional[int] = Query(None, description="Filter by employee (HR/ADMIN scope only)"),
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_user),
+):
+    """
+    List WFH requests with role-based scope (HR: all, MANAGER: subordinates, EMPLOYEE: self).
+    Optional filters: from/to (date range), status, employee_id (HR/ADMIN only).
+    """
+    requests = list_wfh_requests(
+        db=db,
+        current_user=current_user,
+        from_date=from_date,
+        to_date=to_date,
+        department_id=department_id,
+        employee_id=employee_id,
+    )
+    if status:
+        wanted = status.upper()
+        requests = [r for r in requests if str(getattr(r.status, "value", r.status)).upper() == wanted]
+    return WFHListResponse(items=requests, total=len(requests))
 
 @router.post("/{wfh_id}/approve", response_model=WFHRequestOut)
 async def approve_wfh_request(

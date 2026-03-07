@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     # Optional settings with defaults
     JWT_ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
     JWT_EXPIRE_MINUTES: int = Field(default=120, description="JWT token expiration in minutes")
+    JWT_REFRESH_EXPIRE_DAYS: int = Field(default=14, description="JWT refresh token expiration in days")
     
     APP_ENV: str = Field(default="local", description="Application environment: local, staging, prod")
     LOG_LEVEL: str = Field(default="INFO", description="Logging level: DEBUG, INFO, WARNING, ERROR")

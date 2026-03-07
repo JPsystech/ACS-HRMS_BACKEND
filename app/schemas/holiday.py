@@ -3,7 +3,9 @@ Holiday calendar schemas
 """
 from datetime import date as date_type, datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field, field_serializer, ConfigDict
+from pydantic import BaseModel, Field, field_serializer, model_validator, ConfigDict
+from typing import Optional
+from app.core.config import settings
 
 
 class HolidayCreate(BaseModel):
@@ -12,12 +14,14 @@ class HolidayCreate(BaseModel):
     date: date_type = Field(..., description="Holiday date")
     name: str = Field(..., description="Holiday name")
     active: bool = Field(True, description="Whether the holiday is active")
+    description: Optional[str] = Field(None, description="Description / Notes")
 
 
 class HolidayUpdate(BaseModel):
     """Schema for updating a holiday"""
     name: Optional[str] = Field(None, description="Holiday name")
     active: Optional[bool] = Field(None, description="Whether the holiday is active")
+    description: Optional[str] = Field(None, description="Description / Notes")
 
 
 class HolidayOut(BaseModel):
@@ -27,6 +31,9 @@ class HolidayOut(BaseModel):
     date: date_type
     name: str
     active: bool
+    description: Optional[str] = None
+    image_key: Optional[str] = None
+    image_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -38,6 +45,30 @@ class HolidayOut(BaseModel):
         from app.utils.datetime_utils import iso_ist
         return iso_ist(dt) if dt is not None else None
 
+    @model_validator(mode="after")
+    def set_image_url(self) -> "HolidayOut":
+        if self.image_key:
+            try:
+                # 1. Try pre-signed URL (preferred for R2)
+                from app.services.r2_storage import get_r2_storage_service
+                r2_service = get_r2_storage_service()
+                presigned_url = r2_service.get_presigned_url(self.image_key)
+                if presigned_url:
+                    self.image_url = presigned_url
+                    return self
+            except Exception:
+                pass
+            
+            # 2. Fallback to proxy URL
+            try:
+                base = settings.PUBLIC_BASE_URL.rstrip("/")
+                self.image_url = f"{base}/api/v1/holidays/image/{self.image_key}"
+            except Exception:
+                self.image_url = None
+        else:
+            self.image_url = None
+        return self
+
 
 class RHCreate(BaseModel):
     """Schema for creating a restricted holiday"""
@@ -45,12 +76,14 @@ class RHCreate(BaseModel):
     date: date_type = Field(..., description="Restricted holiday date")
     name: str = Field(..., description="Restricted holiday name")
     active: bool = Field(True, description="Whether the restricted holiday is active")
+    description: Optional[str] = Field(None, description="Description / Notes")
 
 
 class RHUpdate(BaseModel):
     """Schema for updating a restricted holiday"""
     name: Optional[str] = Field(None, description="Restricted holiday name")
     active: Optional[bool] = Field(None, description="Whether the restricted holiday is active")
+    description: Optional[str] = Field(None, description="Description / Notes")
 
 
 class RHOut(BaseModel):
@@ -60,6 +93,9 @@ class RHOut(BaseModel):
     date: date_type
     name: str
     active: bool
+    description: Optional[str] = None
+    image_key: Optional[str] = None
+    image_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -70,3 +106,27 @@ class RHOut(BaseModel):
     def _ser_datetime(cls, dt):
         from app.utils.datetime_utils import iso_ist
         return iso_ist(dt) if dt is not None else None
+
+    @model_validator(mode="after")
+    def set_image_url(self) -> "RHOut":
+        if self.image_key:
+            try:
+                # 1. Try pre-signed URL (preferred for R2)
+                from app.services.r2_storage import get_r2_storage_service
+                r2_service = get_r2_storage_service()
+                presigned_url = r2_service.get_presigned_url(self.image_key)
+                if presigned_url:
+                    self.image_url = presigned_url
+                    return self
+            except Exception:
+                pass
+            
+            # 2. Fallback to proxy URL
+            try:
+                base = settings.PUBLIC_BASE_URL.rstrip("/")
+                self.image_url = f"{base}/api/v1/holidays/image/{self.image_key}"
+            except Exception:
+                self.image_url = None
+        else:
+            self.image_url = None
+        return self

@@ -122,20 +122,17 @@ def get_attendance_rows(
             in_geo = session.punch_in_geo or {}
             out_geo = session.punch_out_geo or {}
 
+            from app.utils.datetime_utils import iso_8601_utc
             rows.append(
                 {
                     "emp_code": emp.emp_code,
                     "employee_name": emp.name,
                     "department_name": dept.name,
                     "punch_date": str(session.work_date),
-                    "in_time": session.punch_in_at.isoformat()
-                    if session.punch_in_at
-                    else "",
+                    "in_time": iso_8601_utc(session.punch_in_at) or "",
                     "in_lat": str(in_geo.get("lat", "")),
                     "in_lng": str(in_geo.get("lng", "")),
-                    "out_time": session.punch_out_at.isoformat()
-                    if session.punch_out_at
-                    else "",
+                    "out_time": iso_8601_utc(session.punch_out_at) or "",
                     "out_lat": str(out_geo.get("lat", "")),
                     "out_lng": str(out_geo.get("lng", "")),
                     "source": (session.punch_in_source or "").lower(),
@@ -200,15 +197,16 @@ def get_attendance_rows(
     
     rows = []
     for attendance, emp, dept in results:
+        from app.utils.datetime_utils import iso_8601_utc
         rows.append({
             "emp_code": emp.emp_code,
             "employee_name": emp.name,
             "department_name": dept.name,
             "punch_date": str(attendance.punch_date),
-            "in_time": attendance.in_time.isoformat() if attendance.in_time else "",
+            "in_time": iso_8601_utc(attendance.in_time) or "",
             "in_lat": str(attendance.in_lat) if attendance.in_lat else "",
             "in_lng": str(attendance.in_lng) if attendance.in_lng else "",
-            "out_time": attendance.out_time.isoformat() if attendance.out_time else "",
+            "out_time": iso_8601_utc(attendance.out_time) or "",
             "out_lat": str(attendance.out_lat) if attendance.out_lat else "",
             "out_lng": str(attendance.out_lng) if attendance.out_lng else "",
             "source": attendance.source or ""

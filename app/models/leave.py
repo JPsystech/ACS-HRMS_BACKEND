@@ -46,6 +46,14 @@ class ApprovalAction(str, enum.Enum):
     REJECT = "REJECT"
     CANCEL = "CANCEL"
 
+class LeaveDuration(str, enum.Enum):
+    FULL_DAY = "FULL_DAY"
+    HALF_DAY = "HALF_DAY"
+
+class HalfDaySession(str, enum.Enum):
+    FIRST_HALF = "FIRST_HALF"
+    SECOND_HALF = "SECOND_HALF"
+
 
 class LeaveRequest(Base):
     __tablename__ = "leave_requests"
@@ -74,6 +82,8 @@ class LeaveRequest(Base):
     override_remark = Column(Text, nullable=True)  # Mandatory remark when override_policy is true
     auto_converted_to_lwp = Column(Boolean, nullable=False, default=False)  # Flag for backdated >7 days auto-conversion
     auto_lwp_reason = Column(Text, nullable=True)  # Reason for auto-conversion (e.g., "backdated_over_limit")
+    duration = Column(SQLEnum(LeaveDuration), nullable=False, server_default=text("'FULL_DAY'"))
+    half_day_session = Column(SQLEnum(HalfDaySession), nullable=True)
     applied_at = Column(DateTime(timezone=True), server_default=text("CURRENT_TIMESTAMP"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=text("CURRENT_TIMESTAMP"), nullable=False)
     updated_at = Column(

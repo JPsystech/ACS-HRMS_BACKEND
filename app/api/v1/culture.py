@@ -228,10 +228,9 @@ async def update_profile_me(name: Optional[str] = Form(None), dob: Optional[str]
 async def get_greeting_image(
     employee_id: int,
     year: int,
-    db: Session = Depends(get_db),
-    current_user: Employee = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
-    """Serve birthday greeting image from R2 storage"""
+    """Serve birthday greeting image from R2 storage (Public access)"""
     import logging
     logger = logging.getLogger(__name__)
     

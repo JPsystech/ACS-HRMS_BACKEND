@@ -26,6 +26,7 @@ from app.api.v1 import (
     hr_actions,
     roles,
     debug,
+    attendance_corrections,
 )
 from app.api.v1.admin import admin_router
 
@@ -53,4 +54,5 @@ api_router.include_router(events.router, prefix="/events", tags=["company-events
 api_router.include_router(wfh.router, prefix="/wfh", tags=["wfh"])
 api_router.include_router(hr_actions.router, prefix="/hr/actions", tags=["hr-actions"])
 api_router.include_router(roles.router, prefix="/roles", tags=["roles"])
+api_router.include_router(attendance_corrections.router, prefix="/attendance-corrections", tags=["attendance-corrections"])
 api_router.include_router(debug.router, prefix="/debug", tags=["debug"])

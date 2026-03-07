@@ -15,6 +15,7 @@ from app.schemas.leave import (
     LeaveListItemOut,
     ApprovalActionRequest,
     RejectActionRequest,
+    CancelActionRequest,
     BalanceMeResponse,
     BalanceSummaryMeResponse,
     BalanceItemOut,
@@ -26,6 +27,7 @@ from app.services.leave_service import (
     list_leaves,
     approve_leave,
     reject_leave,
+    cancel_leave,
     list_pending_for_approver
 )
 from app.services import leave_wallet_service as wallet
@@ -131,6 +133,8 @@ async def apply_leave_endpoint(
         from_date=leave_data.from_date,
         to_date=leave_data.to_date,
         reason=leave_data.reason,
+        duration=leave_data.duration,
+        half_day_session=leave_data.half_day_session,
         override_policy=getattr(leave_data, 'override_policy', False),
         override_remark=getattr(leave_data, 'override_remark', None),
         current_user=current_user
@@ -138,6 +142,21 @@ async def apply_leave_endpoint(
     
     return leave_request
 
+
+@router.post("/{leave_request_id}/cancel", response_model=LeaveOut)
+async def cancel_leave_endpoint(
+    leave_request_id: int,
+    cancel_data: CancelActionRequest,
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_user)
+):
+    leave_request = cancel_leave(
+        db=db,
+        leave_request_id=leave_request_id,
+        actor=current_user,
+        remark=cancel_data.remark
+    )
+    return leave_request
 
 @router.get("/my", response_model=LeaveListResponse)
 async def list_my_leaves_endpoint(
