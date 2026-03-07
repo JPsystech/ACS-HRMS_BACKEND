@@ -1,0 +1,11 @@
+*.json
+!package*.json
+!tsconfig*.json
+!composer.json
+!app.json
+!firebase.json
+.env
+.env.*
+secrets/
+firebase-service-account.json
+*firebase-adminsdk*.json
