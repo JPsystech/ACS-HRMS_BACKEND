@@ -2,6 +2,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 from app.core.config import settings
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -23,26 +24,33 @@ def _ensure_firebase() -> None:
     global _firebase_initialized, _firebase_error
     if _firebase_initialized:
         return
-    # Effective enablement: either explicit FCM_ENABLED or presence of service account path
+    # Effective enablement: either explicit FCM_ENABLED or presence of service account config
     if not settings.FCM_ENABLED:
-        sa_path = getattr(settings, "FCM_SERVICE_ACCOUNT_JSON", None)
-        if not sa_path:
+        sa_cfg = getattr(settings, "FCM_SERVICE_ACCOUNT_JSON", None)
+        if not sa_cfg:
             _firebase_error = "FCM disabled: FCM_ENABLED=False and FCM_SERVICE_ACCOUNT_JSON not set"
             return
     if firebase_admin is None or messaging is None:
         return
-    sa_path = settings.FCM_SERVICE_ACCOUNT_JSON
-    if not sa_path:
-        _firebase_error = "FCM service account not configured (FCM_SERVICE_ACCOUNT_JSON not set)"
-        return
-    if not os.path.exists(sa_path):
-        _firebase_error = f"FCM service account path does not exist: {sa_path}"
+    sa_cfg = settings.FCM_SERVICE_ACCOUNT_JSON
+    if not sa_cfg:
+        _firebase_error = "FCM service account not configured"
         return
     try:
-        cred = credentials.Certificate(sa_path)
-        firebase_admin.initialize_app(cred)
-        _firebase_initialized = True
-        logger.info("FCM initialized (service_account=%s)", sa_path)
+        if sa_cfg.strip().startswith("{"):
+            cred_dict = json.loads(sa_cfg)
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+            _firebase_initialized = True
+            logger.info("FCM initialized using JSON from env")
+        else:
+            if not os.path.exists(sa_cfg):
+                _firebase_error = f"FCM service account path does not exist: {sa_cfg}"
+                return
+            cred = credentials.Certificate(sa_cfg)
+            firebase_admin.initialize_app(cred)
+            _firebase_initialized = True
+            logger.info("FCM initialized (service_account=%s)", sa_cfg)
     except Exception as e:
         _firebase_error = f"Failed to initialize Firebase Admin: {e}"
         logger.error(_firebase_error)
@@ -52,13 +60,14 @@ def diagnose_fcm_config() -> Dict[str, Any]:
     """
     Return startup diagnostics for FCM configuration.
     """
-    sa_path = getattr(settings, "FCM_SERVICE_ACCOUNT_JSON", None)
-    path_exists = bool(sa_path) and os.path.exists(sa_path) if sa_path else False
-    effective_enabled = bool(settings.FCM_ENABLED or path_exists)
+    sa_cfg = getattr(settings, "FCM_SERVICE_ACCOUNT_JSON", None)
+    is_json = bool(sa_cfg and sa_cfg.strip().startswith("{"))
+    path_exists = bool(sa_cfg) and not is_json and os.path.exists(sa_cfg) if sa_cfg else False
+    effective_enabled = bool(settings.FCM_ENABLED or is_json or path_exists)
     return {
         "configured_enabled": bool(settings.FCM_ENABLED),
         "effective_enabled": effective_enabled,
-        "service_account_path": sa_path,
+        "service_account_path": ("env:json" if is_json else sa_cfg),
         "service_account_path_exists": path_exists,
         "initialized": _firebase_initialized,
         "init_error": _firebase_error,
@@ -74,9 +83,10 @@ def send_push_to_tokens(
     data: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     _ensure_firebase()
-    # Effective enablement: allow send if FCM_ENABLED or valid service account path is present and initialized
-    sa_path = getattr(settings, "FCM_SERVICE_ACCOUNT_JSON", None)
-    effective_enabled = bool(settings.FCM_ENABLED or (sa_path and os.path.exists(sa_path)))
+    sa_cfg = getattr(settings, "FCM_SERVICE_ACCOUNT_JSON", None)
+    is_json = bool(sa_cfg and sa_cfg.strip().startswith("{"))
+    path_ok = bool(sa_cfg) and not is_json and os.path.exists(sa_cfg)
+    effective_enabled = bool(settings.FCM_ENABLED or is_json or path_ok)
     if not effective_enabled:
         logger.warning("FCM disabled; set FCM_ENABLED=true or provide valid FCM_SERVICE_ACCOUNT_JSON")
         return {"success": False, "error": "FCM disabled"}
