@@ -1,11 +1,6 @@
-*.json
-!package*.json
-!tsconfig*.json
-!composer.json
-!app.json
-!firebase.json
 .env
 .env.*
 secrets/
 firebase-service-account.json
+acs-hrms-firebase-adminsdk-fbsvc-c2902dc2ae.json
 *firebase-adminsdk*.json
