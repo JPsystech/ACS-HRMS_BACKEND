@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, model_validator, field_serializer
 from pydantic import ConfigDict
 from app.utils.datetime_utils import iso_ist
 from decimal import Decimal
-from app.models.leave import LeaveType, LeaveStatus
+from app.models.leave import LeaveType, LeaveStatus, LeaveDuration, HalfDaySession
 from app.schemas.employee import EmployeeOut
 
 
@@ -17,6 +17,8 @@ class LeaveApplyRequest(BaseModel):
     from_date: date = Field(..., description="Start date of leave")
     to_date: date = Field(..., description="End date of leave")
     reason: Optional[str] = Field(None, description="Reason for leave")
+    duration: LeaveDuration = Field(LeaveDuration.FULL_DAY, description="Leave duration: FULL_DAY or HALF_DAY")
+    half_day_session: Optional[HalfDaySession] = Field(None, description="If HALF_DAY, session: FIRST_HALF or SECOND_HALF")
     override_policy: bool = Field(False, description="Override policy rules (HR only)")
     override_remark: Optional[str] = Field(None, description="Remark for override (required if override_policy is True)")
 
@@ -30,6 +32,9 @@ class RejectActionRequest(BaseModel):
     """Schema for leave rejection request"""
     remarks: str = Field(..., description="Remarks for rejection")
 
+class CancelActionRequest(BaseModel):
+    remark: str = Field(..., description="Remark for cancellation (required)")
+
 
 class LeaveOut(BaseModel):
     """Schema for leave output (includes remarks and actor info for Flutter/Admin)"""
@@ -41,6 +46,8 @@ class LeaveOut(BaseModel):
     to_date: date
     reason: Optional[str]
     status: LeaveStatus
+    duration: LeaveDuration
+    half_day_session: Optional[HalfDaySession]
     computed_days: Decimal
     paid_days: Decimal
     lwp_days: Decimal
@@ -93,6 +100,8 @@ class LeaveListItemOut(BaseModel):
     to_date: date
     reason: Optional[str]
     status: LeaveStatus
+    duration: LeaveDuration
+    half_day_session: Optional[HalfDaySession]
     computed_days: Decimal
     paid_days: Decimal
     lwp_days: Decimal

@@ -402,7 +402,10 @@ def list_employees(
     query = (
         db.query(Employee, RoleModel.role_rank.label('_role_rank'))
         .join(RoleModel, RoleModel.name == Employee.role)
-        .options(joinedload(Employee.reporting_manager))
+        .options(
+            joinedload(Employee.reporting_manager),
+            joinedload(Employee.department),
+        )
     )
     
     if department_id is not None:
@@ -467,7 +470,10 @@ def get_employee(db: Session, employee_id: int) -> Optional[Employee]:
     """Get an employee by ID"""
     return (
         db.query(Employee)
-        .options(joinedload(Employee.reporting_manager))
+        .options(
+            joinedload(Employee.reporting_manager),
+            joinedload(Employee.department),
+        )
         .filter(Employee.id == employee_id)
         .first()
     )
@@ -554,6 +560,7 @@ def _employee_to_employee_out(employee: Employee) -> EmployeeOut:
         id=employee.id,
         emp_code=employee.emp_code,
         name=employee.name,
+        department_name=employee.department.name if getattr(employee, "department", None) else None,
         dob=employee.dob,
         profile_photo_url=photo_url,
         mobile_number=employee.mobile_number,
@@ -751,10 +758,16 @@ def get_employees_by_reporting_manager(
     Returns:
         List of Employee instances
     """
-    return db.query(Employee).filter(
-        Employee.reporting_manager_id == reporting_manager_id,
-        Employee.active == True
-    ).order_by(Employee.name).all()
+    return (
+        db.query(Employee)
+        .options(joinedload(Employee.department))
+        .filter(
+            Employee.reporting_manager_id == reporting_manager_id,
+            Employee.active == True
+        )
+        .order_by(Employee.name)
+        .all()
+    )
 
 
 def reset_password(

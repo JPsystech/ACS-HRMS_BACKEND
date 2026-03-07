@@ -7,11 +7,22 @@ from typing import List, Optional, Tuple, Dict, Set
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
 from fastapi import HTTPException, status
-from app.models.leave import LeaveRequest, LeaveType, LeaveStatus, LeaveBalance, LeaveApproval, ApprovalAction
+from app.models.leave import (
+    LeaveRequest,
+    LeaveType,
+    LeaveStatus,
+    LeaveBalance,
+    LeaveApproval,
+    ApprovalAction,
+    LeaveDuration,
+    HalfDaySession,
+)
 from app.models.employee import Employee, Role
 from app.models.role import RoleModel
 from app.utils.roles import role_name
 from app.services.audit_service import log_audit
+from app.models.notification_device import NotificationDevice
+from app.services.push_service import send_push_to_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -374,7 +385,9 @@ def validate_overlap(
     employee_id: int,
     from_date: date,
     to_date: date,
-    exclude_leave_id: Optional[int] = None
+    exclude_leave_id: Optional[int] = None,
+    duration: Optional[LeaveDuration] = None,
+    half_day_session: Optional[HalfDaySession] = None,
 ) -> None:
     """
     Validate that the leave request doesn't overlap with existing
@@ -387,35 +400,71 @@ def validate_overlap(
         to_date: End date of new leave
         exclude_leave_id: Leave request ID to exclude from check (for updates)
     
+    Args:
+        duration: For session-aware overlap (FULL_DAY or HALF_DAY)
+        half_day_session: For HALF_DAY requests (FIRST_HALF or SECOND_HALF)
+    
     Raises:
         HTTPException: If overlap detected (409 Conflict)
     """
     # Overlap condition: NOT (existing.to_date < new.from_date OR existing.from_date > new.to_date)
     # Which means: existing.to_date >= new.from_date AND existing.from_date <= new.to_date
-    
-    query = db.query(LeaveRequest).options(
-        joinedload(LeaveRequest.employee),
-        joinedload(LeaveRequest.approver)
-    ).options(
-        joinedload(LeaveRequest.employee),
-        joinedload(LeaveRequest.approver)
-    ).filter(
-        LeaveRequest.employee_id == employee_id,
-        LeaveRequest.status.in_([LeaveStatus.PENDING, LeaveStatus.APPROVED]),
-        LeaveRequest.to_date >= from_date,
-        LeaveRequest.from_date <= to_date
+    query = (
+        db.query(LeaveRequest)
+        .options(
+            joinedload(LeaveRequest.employee),
+            joinedload(LeaveRequest.approver),
+        )
+        .filter(
+            LeaveRequest.employee_id == employee_id,
+            LeaveRequest.status.in_([LeaveStatus.PENDING, LeaveStatus.APPROVED]),
+            LeaveRequest.to_date >= from_date,
+            LeaveRequest.from_date <= to_date,
+        )
     )
     
     if exclude_leave_id:
         query = query.filter(LeaveRequest.id != exclude_leave_id)
     
-    overlapping = query.first()
+    existing = query.all()
+    if not existing:
+        return
     
-    if overlapping:
+    # Session-aware overlap rules
+    # - If new is FULL_DAY: any overlap (FULL_DAY or HALF_DAY) is a conflict
+    # - If new is HALF_DAY:
+    #     - FULL_DAY on same date -> conflict
+    #     - HALF_DAY on same date and same session -> conflict
+    #     - HALF_DAY on same date and different session -> allowed
+    dur = duration or LeaveDuration.FULL_DAY
+    
+    if dur == LeaveDuration.FULL_DAY:
+        # Any overlap is a conflict
+        first = existing[0]
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Leave request overlaps with existing leave from {overlapping.from_date} to {overlapping.to_date}"
+            detail=f"Leave request overlaps with existing leave from {first.from_date} to {first.to_date}"
         )
+    else:
+        # HALF_DAY
+        # Only check same-day overlaps because from_date == to_date is enforced elsewhere
+        for ov in existing:
+            # If existing spans the same day, check duration/session rules
+            # Consider same-day if from_date <= new_date <= to_date
+            if ov.from_date <= from_date <= ov.to_date:
+                if ov.duration == LeaveDuration.FULL_DAY:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"Leave request overlaps with existing full-day leave on {from_date}"
+                    )
+                if ov.duration == LeaveDuration.HALF_DAY:
+                    if ov.half_day_session == half_day_session:
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail=f"Leave request overlaps with existing half-day ({ov.half_day_session.value}) on {from_date}"
+                        )
+        # No conflicting overlaps found
+        return
 
 
 def apply_leave(
@@ -425,6 +474,8 @@ def apply_leave(
     from_date: date,
     to_date: date,
     reason: Optional[str] = None,
+    duration: Optional[LeaveDuration] = None,
+    half_day_session: Optional[HalfDaySession] = None,
     override_policy: bool = False,
     override_remark: Optional[str] = None,
     current_user: Optional[Employee] = None
@@ -491,8 +542,15 @@ def apply_leave(
                 detail=f"Employee has already used their Restricted Holiday (RH) quota for year {year}. Only one RH per year is allowed."
             )
     
-    # Validate overlap
-    validate_overlap(db, employee_id, from_date, to_date)
+    # Validate overlap (session-aware)
+    validate_overlap(
+        db,
+        employee_id,
+        from_date,
+        to_date,
+        duration=duration,
+        half_day_session=half_day_session
+    )
     
     # Get employee for policy validations
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
@@ -523,8 +581,30 @@ def apply_leave(
             detail="override_policy can only be set by authenticated HR users"
         )
     
-    # Calculate days with sandwich rule (applies to CL/PL/SL, not to RH/COMPOFF/LWP)
-    computed_days, by_month = calculate_days_with_sandwich(db, leave_type, from_date, to_date)
+    # Resolve duration defaults to FULL_DAY if not provided
+    duration = duration or LeaveDuration.FULL_DAY
+    # Half-day validations and calculation
+    if duration == LeaveDuration.HALF_DAY:
+        # Only allow half-day for CL/PL/SL
+        if leave_type not in (LeaveType.CL, LeaveType.PL, LeaveType.SL):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Half-Day is supported only for CL, PL, or SL"
+            )
+        # Must be single day
+        if from_date != to_date:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Half-Day leave must be a single day (from_date == to_date)"
+            )
+        computed_days = 0.5
+        by_month = {f"{from_date.year}-{from_date.month:02d}": 0.5}
+        # Ensure session provided
+        if half_day_session is None:
+            half_day_session = HalfDaySession.FIRST_HALF
+    else:
+        # Calculate days with sandwich rule (applies to CL/PL/SL, not to RH/COMPOFF/LWP)
+        computed_days, by_month = calculate_days_with_sandwich(db, leave_type, from_date, to_date)
     
     if computed_days <= 0:
         raise HTTPException(
@@ -595,6 +675,8 @@ def apply_leave(
         computed_days_by_month=computed_days_by_month_json,
         paid_days=(compute_split(leave_type, computed_days, available)[0] if leave_type in WALLET_LEAVE_TYPES and leave_type != LeaveType.RH else Decimal('0')),
         lwp_days=(compute_split(leave_type, computed_days, available)[1] if leave_type in WALLET_LEAVE_TYPES and leave_type != LeaveType.RH else Decimal('0')),
+        duration=duration,
+        half_day_session=half_day_session,
         override_policy=override_policy,
         override_remark=override_remark,
         auto_converted_to_lwp=(auto_lwp_reason is not None),
@@ -1032,7 +1114,31 @@ def approve_leave(
         entity_id=leave_request.id,
         meta=audit_meta
     )
-    
+    try:
+        # Send push notification to the employee whose leave was approved
+        uid = leave_request.employee_id
+        tokens = [r[0] for r in db.query(NotificationDevice.fcm_token)
+                  .filter(NotificationDevice.user_id == uid, NotificationDevice.is_active.is_(True))
+                  .all()]
+        logger.info(
+            "leave approval notify: employee_id=%s tokens_found=%s title=%s body=%s",
+            uid, len(tokens), "Leave Approved", "Your leave request has been approved."
+        )
+        if tokens:
+            res = send_push_to_tokens(
+                tokens,
+                title="Leave Approved",
+                body="Your leave request has been approved.",
+                data={"type": "LEAVE_APPROVED", "leave_request_id": str(leave_request.id)}
+            )
+            ok = bool(res.get("success")) and int(res.get("success_count", 0)) > 0
+            if not ok:
+                logger.error("leave approval notify failed: employee_id=%s error=%s", uid, res.get("error"))
+        else:
+            logger.info("leave approval notify: no active tokens for employee_id=%s", uid)
+    except Exception as e:
+        logger.exception("leave approval notify: exception while sending push employee_id=%s", leave_request.employee_id)
+
     return leave_request
 
 
@@ -1105,9 +1211,114 @@ def reject_leave(
             "remarks": remarks
         }
     )
+    try:
+        uid = leave_request.employee_id
+        tokens = [r[0] for r in db.query(NotificationDevice.fcm_token)
+                  .filter(NotificationDevice.user_id == uid, NotificationDevice.is_active.is_(True))
+                  .all()]
+        logger.info(
+            "leave reject notify: employee_id=%s tokens_found=%s title=%s body=%s",
+            uid, len(tokens), "Leave Rejected", "Your leave request has been rejected."
+        )
+        if tokens:
+            res = send_push_to_tokens(
+                tokens,
+                title="Leave Rejected",
+                body="Your leave request has been rejected.",
+                data={"type": "LEAVE_REJECTED", "leave_request_id": str(leave_request.id)}
+            )
+            ok = bool(res.get("success")) and int(res.get("success_count", 0)) > 0
+            if not ok:
+                logger.error("leave reject notify failed: employee_id=%s error=%s", uid, res.get("error"))
+        else:
+            logger.info("leave reject notify: no active tokens for employee_id=%s", uid)
+    except Exception:
+        logger.exception("leave reject notify: exception while sending push employee_id=%s", leave_request.employee_id)
 
     return leave_request
 
+
+def cancel_leave(
+    db: Session,
+    leave_request_id: int,
+    actor: Employee,
+    remark: str
+) -> LeaveRequest:
+    leave_request = db.query(LeaveRequest).filter(LeaveRequest.id == leave_request_id).first()
+    if not leave_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Leave request with id {leave_request_id} not found"
+        )
+    if leave_request.status != LeaveStatus.APPROVED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only APPROVED leaves can be cancelled"
+        )
+    today = date.today()
+    if not (today < leave_request.from_date):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only future-dated approved leaves can be cancelled"
+        )
+    validate_approval_authority(db, leave_request, actor)
+    before_status = leave_request.status.value
+    wallet.apply_leave_cancel(db, leave_request_id, actor.id, remark, recredit=True)
+    db.refresh(leave_request)
+    logger.info(
+        "leave status transition: leave_request_id=%s before=%s after=CANCELLED action=cancel",
+        leave_request_id, before_status,
+    )
+    approval = LeaveApproval(
+        leave_request_id=leave_request.id,
+        action_by=actor.id,
+        action=ApprovalAction.CANCEL,
+        remarks=remark
+    )
+    db.add(approval)
+    db.commit()
+    db.refresh(leave_request)
+    db.refresh(approval)
+    log_audit(
+        db=db,
+        actor_id=actor.id,
+        action="LEAVE_CANCEL",
+        entity_type="leave_requests",
+        entity_id=leave_request.id,
+        meta={
+            "leave_request_id": leave_request.id,
+            "employee_id": leave_request.employee_id,
+            "leave_type": leave_request.leave_type.value,
+            "from_date": str(leave_request.from_date),
+            "to_date": str(leave_request.to_date),
+            "paid_days": float(leave_request.paid_days),
+        },
+    )
+    # Notify employee about cancellation
+    try:
+        uid = leave_request.employee_id
+        tokens = [r[0] for r in db.query(NotificationDevice.fcm_token)
+                  .filter(NotificationDevice.user_id == uid, NotificationDevice.is_active.is_(True))
+                  .all()]
+        logger.info(
+            "leave cancel notify: employee_id=%s tokens_found=%s title=%s body=%s",
+            uid, len(tokens), "Leave Cancelled", "Your approved leave has been cancelled."
+        )
+        if tokens:
+            res = send_push_to_tokens(
+                tokens,
+                title="Leave Cancelled",
+                body="Your approved leave has been cancelled.",
+                data={"type": "LEAVE_CANCELLED", "leave_request_id": str(leave_request.id)}
+            )
+            ok = bool(res.get("success")) and int(res.get("success_count", 0)) > 0
+            if not ok:
+                logger.error("leave cancel notify failed: employee_id=%s error=%s", uid, res.get("error"))
+        else:
+            logger.info("leave cancel notify: no active tokens for employee_id=%s", uid)
+    except Exception:
+        logger.exception("leave cancel notify: exception while sending push employee_id=%s", leave_request.employee_id)
+    return leave_request
 
 def list_pending_for_approver(
     db: Session,

@@ -1,6 +1,7 @@
 """
 Authentication schemas
 """
+from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -14,8 +15,16 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     """Token response schema"""
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
     must_change_password: bool = False
+    access_token_expires_at: Optional[datetime] = None
+    refresh_token_expires_at: Optional[datetime] = None
+
+
+class RefreshTokenRequest(BaseModel):
+    """Refresh token request schema"""
+    refresh_token: str
 
 
 class ChangePasswordRequest(BaseModel):

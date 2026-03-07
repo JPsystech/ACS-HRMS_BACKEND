@@ -289,12 +289,69 @@ class AdminSessionUpdateRequest(BaseModel):
     status: Optional[str] = None  # OPEN/CLOSED/AUTO_CLOSED
     remarks: Optional[str] = None
 
+    @field_validator("punch_in_at", "punch_out_at", mode="before")
+    @classmethod
+    def _parse_admin_edit_dt(cls, v: Any) -> Any:
+        """
+        Accept ISO 8601 strings or datetime. If parsed datetime is naive,
+        interpret it as Asia/Kolkata to avoid treating local admin edits as UTC.
+        """
+        if v is None:
+            return v
+        dt: Optional[datetime] = None
+        if isinstance(v, datetime):
+            dt = v
+        elif isinstance(v, str):
+            try:
+                # Support 'Z' and offset
+                dt = datetime.fromisoformat(v.replace("Z", "+00:00"))
+            except (TypeError, ValueError):
+                return v
+        else:
+            return v
+        if dt is not None and dt.tzinfo is None:
+            try:
+                from zoneinfo import ZoneInfo
+                dt = dt.replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+            except Exception:
+                # Fallback: leave naive; service will handle
+                return dt
+        return dt
+
 
 class AdminSessionDto(SessionDto):
     """Session with employee and department names for admin list."""
     employee_name: Optional[str] = None
     department_name: Optional[str] = None
     worked_minutes: Optional[int] = None  # computed: (punch_out_at - punch_in_at) or None
+
+
+class AdminSessionCreateRequest(BaseModel):
+    """Admin create: add a session for an employee when both punches were missed."""
+    employee_id: int
+    punch_in_at: datetime
+    punch_out_at: Optional[datetime] = None
+    status: Optional[str] = Field(default="CLOSED", description="OPEN/CLOSED/AUTO_CLOSED/SUSPICIOUS")
+    remarks: Optional[str] = None
+
+    @field_validator("punch_in_at", "punch_out_at", mode="before")
+    @classmethod
+    def _parse_admin_create_dt(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            from datetime import datetime
+            try:
+                v = datetime.fromisoformat(v.replace("Z", "+00:00"))
+            except Exception:
+                return v
+        if hasattr(v, "tzinfo") and v.tzinfo is None:
+            try:
+                from zoneinfo import ZoneInfo
+                v = v.replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+            except Exception:
+                return v
+        return v
 
 
 class AdminSessionListResponse(BaseModel):

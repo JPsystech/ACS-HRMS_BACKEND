@@ -72,11 +72,13 @@ def run_migrations_offline() -> None:
 
     """
     url = get_url()
+    is_sqlite = url.startswith("sqlite")
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        render_as_batch=is_sqlite,
     )
 
     with context.begin_transaction():
@@ -99,8 +101,12 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        url = get_url()
+        is_sqlite = url.startswith("sqlite")
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            render_as_batch=is_sqlite,
         )
 
         with context.begin_transaction():

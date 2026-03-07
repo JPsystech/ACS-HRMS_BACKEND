@@ -34,6 +34,7 @@ from app.constants import ROLE_ADMIN, ROLE_HR
 from datetime import date
 from sqlalchemy.exc import OperationalError
 from app.utils.production_reset import run_production_reset
+from app.services.push_service import diagnose_fcm_config, _ensure_firebase  # type: ignore
 
 
 def _mask_database_url(url: str) -> str:
@@ -93,6 +94,20 @@ def startup_log_config() -> None:
         settings.R2_ENDPOINT,
         bool(settings.R2_ACCESS_KEY_ID),
         settings.R2_BUCKET
+    )
+    try:
+        _ensure_firebase()
+    except Exception:
+        pass
+    fcm = diagnose_fcm_config()
+    logger.info(
+        "FCM Config: CONFIGURED_ENABLED=%s, EFFECTIVE_ENABLED=%s, SA_PATH=%s, SA_EXISTS=%s, INITIALIZED=%s, ERROR=%s",
+        fcm.get("configured_enabled"),
+        fcm.get("effective_enabled"),
+        fcm.get("service_account_path"),
+        fcm.get("service_account_path_exists"),
+        fcm.get("initialized"),
+        fcm.get("init_error"),
     )
 
 

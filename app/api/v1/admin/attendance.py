@@ -8,6 +8,7 @@ import json
 from datetime import date
 from typing import Optional, List, Any
 from fastapi import APIRouter, Depends, Query
+import logging
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db, get_current_user, require_admin_attendance
@@ -18,10 +19,12 @@ from app.schemas.attendance import (
     AdminSessionDto,
     AdminSessionUpdateRequest,
     AdminSessionListResponse,
+    AdminSessionCreateRequest,
 )
 from app.services import attendance_session_service as svc
 
 router = APIRouter()
+_log = logging.getLogger(__name__)
 
 
 def _geo_to_dict(geo: Any) -> Optional[dict]:
@@ -113,6 +116,23 @@ async def admin_list(
     items = [_session_to_admin_dto(s) for s in sessions]
     return AdminSessionListResponse(items=items, total=len(items))
 
+@router.post("", response_model=SessionDto, status_code=201)
+async def admin_create_session_endpoint(
+    body: AdminSessionCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(require_admin_attendance),
+):
+    """POST /api/v1/admin/attendance - create a session when both punches were missed."""
+    session = svc.admin_create_session(
+        db=db,
+        employee_id=body.employee_id,
+        punch_in_at=body.punch_in_at,
+        punch_out_at=body.punch_out_at,
+        status=body.status,
+        remarks=body.remarks,
+        created_by=current_user.id,
+    )
+    return SessionDto.model_validate(session)
 
 @router.patch("/{session_id}", response_model=SessionDto)
 async def admin_patch_session(
@@ -122,12 +142,22 @@ async def admin_patch_session(
     current_user: Employee = Depends(require_admin_attendance),
 ):
     """PATCH /api/v1/admin/attendance/{session_id} - edit punch_in_at, punch_out_at, status, remarks. Creates ADMIN_EDIT event."""
+    _log.debug(
+        "admin_patch_session: session_id=%s payload={punch_in_at=%r, punch_out_at=%r, status=%r, remarks=%r}",
+        session_id, body.punch_in_at, body.punch_out_at, body.status, bool(body.remarks and body.remarks.strip()),
+    )
     session = svc.admin_update_session(
         db, session_id, current_user,
         punch_in_at=body.punch_in_at,
         punch_out_at=body.punch_out_at,
         status=body.status,
         remarks=body.remarks,
+    )
+    _log.debug(
+        "admin_patch_session: saved={punch_in_at_utc=%s, punch_out_at_utc=%s} response_ist={punch_in_at=%s, punch_out_at=%s}",
+        getattr(session, "punch_in_at", None).isoformat() if getattr(session, "punch_in_at", None) else None,
+        getattr(session, "punch_out_at", None).isoformat() if getattr(session, "punch_out_at", None) else None,
+        session.punch_in_at, session.punch_out_at,
     )
     return SessionDto.model_validate(session)
 

@@ -197,10 +197,28 @@ def create_access_token(data: Dict, expires_minutes: Optional[int] = None) -> st
         expires_minutes = settings.JWT_EXPIRE_MINUTES
     
     expire = datetime.utcnow() + timedelta(minutes=expires_minutes)
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": "access"})
     
     # Optionally include credit in token payload
     to_encode.update({"credit": SYSTEM_CREDIT})
+    
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM
+    )
+    return encoded_jwt
+
+
+def create_refresh_token(data: Dict, expires_days: Optional[int] = None) -> str:
+    """Create a JWT refresh token"""
+    to_encode = data.copy()
+    
+    if expires_days is None:
+        expires_days = settings.JWT_REFRESH_EXPIRE_DAYS
+    
+    expire = datetime.utcnow() + timedelta(days=expires_days)
+    to_encode.update({"exp": expire, "type": "refresh"})
     
     encoded_jwt = jwt.encode(
         to_encode,

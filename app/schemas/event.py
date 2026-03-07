@@ -12,12 +12,18 @@ class CompanyEventCreate(BaseModel):
     date: date_type = Field(..., description="Event date")
     name: str = Field(..., min_length=1, max_length=255, description="Event name")
     active: bool = Field(True, description="Whether event is active")
+    description: str | None = Field(None, description="Event description")
+    image_url: str | None = Field(None, description="Event image URL")
+    location: str | None = Field(None, description="Event location")
 
 
 class CompanyEventUpdate(BaseModel):
     """Schema for updating company event"""
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     active: Optional[bool] = None
+    description: str | None = Field(None)
+    image_url: str | None = Field(None)
+    location: str | None = Field(None)
 
 
 class CompanyEventOut(BaseModel):
@@ -27,6 +33,9 @@ class CompanyEventOut(BaseModel):
     date: date_type
     name: str
     active: bool
+    description: str | None = None
+    image_url: str | None = None
+    location: str | None = None
     created_at: datetime
     updated_at: datetime
 

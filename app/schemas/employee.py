@@ -80,6 +80,7 @@ class EmployeeOut(BaseModel):
     id: int
     emp_code: str
     name: str
+    department_name: Optional[str] = None
     dob: Optional[date] = None
     profile_photo_url: Optional[str] = None
     photo_key: Optional[str] = None

@@ -16,6 +16,7 @@ def create_holiday(
     holiday_date: date,
     name: str,
     active: bool = True,
+    description: Optional[str] = None,
     actor_id: int = None
 ) -> Holiday:
     """
@@ -61,6 +62,7 @@ def create_holiday(
         date=holiday_date,
         name=name,
         active=active,
+        description=description,
         created_at=now,
         updated_at=now
     )
@@ -124,6 +126,7 @@ def update_holiday(
     holiday_id: int,
     name: Optional[str] = None,
     active: Optional[bool] = None,
+    description: Optional[str] = None,
     actor_id: int = None
 ) -> Holiday:
     """
@@ -153,6 +156,8 @@ def update_holiday(
         holiday.name = name
     if active is not None:
         holiday.active = active
+    if description is not None:
+        holiday.description = description
     
     # Explicitly update updated_at for SQLite compatibility
     holiday.updated_at = datetime.now(timezone.utc)
@@ -170,7 +175,8 @@ def update_holiday(
             entity_id=holiday.id,
             meta={
                 "name": name,
-                "active": active
+                "active": active,
+                "description": description
             }
         )
     
@@ -210,6 +216,7 @@ def create_rh(
     rh_date: date,
     name: str,
     active: bool = True,
+    description: Optional[str] = None,
     actor_id: int = None
 ) -> RestrictedHoliday:
     """
@@ -255,6 +262,7 @@ def create_rh(
         date=rh_date,
         name=name,
         active=active,
+        description=description,
         created_at=now,
         updated_at=now
     )
@@ -318,6 +326,7 @@ def update_rh(
     rh_id: int,
     name: Optional[str] = None,
     active: Optional[bool] = None,
+    description: Optional[str] = None,
     actor_id: int = None
 ) -> RestrictedHoliday:
     """
@@ -347,6 +356,8 @@ def update_rh(
         rh.name = name
     if active is not None:
         rh.active = active
+    if description is not None:
+        rh.description = description
     
     # Explicitly update updated_at for SQLite compatibility
     rh.updated_at = datetime.now(timezone.utc)

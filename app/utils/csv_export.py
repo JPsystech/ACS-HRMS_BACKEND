@@ -43,7 +43,7 @@ def stream_csv(headers: List[str], rows: Iterable[Dict], filename: str = "export
     
     response = StreamingResponse(
         generate(),
-        media_type="text/csv; charset=utf-8",
+        media_type="text/csv",
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"'
         }

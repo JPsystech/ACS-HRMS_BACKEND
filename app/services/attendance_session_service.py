@@ -473,11 +473,24 @@ def admin_update_session(
 
     meta = {}
     if punch_in_at is not None:
+        # Treat naive admin edit times as IST to avoid unintended UTC interpretation
+        if punch_in_at.tzinfo is None:
+            try:
+                from zoneinfo import ZoneInfo
+                punch_in_at = punch_in_at.replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+            except Exception:
+                pass
         punch_in_at_utc = ensure_utc(punch_in_at)
         meta["old_punch_in_at"] = session.punch_in_at.isoformat() if session.punch_in_at else None
         meta["new_punch_in_at"] = punch_in_at_utc.isoformat()
         session.punch_in_at = punch_in_at_utc
     if punch_out_at is not None:
+        if punch_out_at.tzinfo is None:
+            try:
+                from zoneinfo import ZoneInfo
+                punch_out_at = punch_out_at.replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+            except Exception:
+                pass
         punch_out_at_utc = ensure_utc(punch_out_at)
         meta["old_punch_out_at"] = session.punch_out_at.isoformat() if session.punch_out_at else None
         meta["new_punch_out_at"] = punch_out_at_utc.isoformat()
@@ -501,6 +514,14 @@ def admin_update_session(
         meta_json=sanitize_for_json(meta),
         created_by=current_user.id,
     )
+    _log.debug(
+        "admin_update_session: session_id=%s applied={punch_in_at_utc=%s, punch_out_at_utc=%s, status=%s, remarks=%s}",
+        session.id,
+        session.punch_in_at.isoformat() if session.punch_in_at else None,
+        session.punch_out_at.isoformat() if session.punch_out_at else None,
+        session.status,
+        bool(session.remarks and session.remarks.strip()),
+    )
     db.add(event)
     db.commit()
     db.refresh(session)
@@ -512,6 +533,112 @@ def admin_update_session(
         entity_type="attendance_sessions",
         entity_id=session.id,
         meta=sanitize_for_json({"session_id": session_id, **meta}),
+    )
+    return session
+
+
+def admin_create_session(
+    db: Session,
+    *,
+    employee_id: int,
+    punch_in_at: datetime,
+    punch_out_at: Optional[datetime],
+    status: Optional[str],
+    remarks: Optional[str],
+    created_by: int,
+) -> AttendanceSession:
+    """
+    Admin: create a session when both punches were missed.
+    Stores UTC timestamps, derives work_date from IST (Asia/Kolkata) date of punch_in_at.
+    """
+    # Normalize datetimes: treat naive as IST, then convert to UTC
+    if punch_in_at.tzinfo is None:
+        punch_in_at = punch_in_at.replace(tzinfo=TZ)
+    in_utc = ensure_utc(punch_in_at)
+    out_utc = None
+    if punch_out_at is not None:
+        if punch_out_at.tzinfo is None:
+            punch_out_at = punch_out_at.replace(tzinfo=TZ)
+        out_utc = ensure_utc(punch_out_at)
+
+    # Derive work_date from IST date of punch_in_at
+    work_date = in_utc.astimezone(TZ).date()
+
+    # Prevent duplicate session for same employee/work_date
+    existing = (
+        db.query(AttendanceSession)
+        .filter(
+            AttendanceSession.employee_id == employee_id,
+            AttendanceSession.work_date == work_date,
+        )
+        .first()
+    )
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session already exists for this employee and date",
+        )
+
+    sess_status = SessionStatus(status) if status else SessionStatus.CLOSED
+
+    session = AttendanceSession(
+        employee_id=employee_id,
+        work_date=work_date,
+        punch_in_at=in_utc,
+        punch_out_at=out_utc,
+        status=sess_status,
+        punch_in_source="ADMIN",
+        punch_out_source="ADMIN" if out_utc else None,
+        remarks=remarks,
+    )
+    db.add(session)
+    db.flush()
+
+    # Create immutable events
+    ev_in = AttendanceEvent(
+        session_id=session.id,
+        employee_id=employee_id,
+        event_type=AttendanceEventType.IN,
+        event_at=in_utc,
+        meta_json={"source": "ADMIN", "created_by": created_by},
+        created_by=created_by,
+    )
+    db.add(ev_in)
+    if out_utc is not None:
+        ev_out = AttendanceEvent(
+            session_id=session.id,
+            employee_id=employee_id,
+            event_type=AttendanceEventType.OUT,
+            event_at=out_utc,
+            meta_json={"source": "ADMIN", "created_by": created_by},
+            created_by=created_by,
+        )
+        db.add(ev_out)
+
+    db.commit()
+    db.refresh(session)
+
+    # Upsert daily summary
+    try:
+        upsert_daily_on_punch_in(db=db, user_id=employee_id, punch_in_at_utc=session.punch_in_at)
+        db.commit()
+    except Exception:
+        db.rollback()
+        _log.exception("Failed to upsert attendance_daily for admin-created session user_id=%s", employee_id)
+
+    log_audit(
+        db=db,
+        actor_id=created_by,
+        action="ATTENDANCE_SESSION_ADMIN_CREATE",
+        entity_type="attendance_sessions",
+        entity_id=session.id,
+        meta={
+            "employee_id": employee_id,
+            "work_date": str(work_date),
+            "punch_in_at": in_utc.isoformat(),
+            "punch_out_at": out_utc.isoformat() if out_utc else None,
+            "status": session.status.value if hasattr(session.status, "value") else str(session.status),
+        },
     )
     return session
 

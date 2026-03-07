@@ -2,7 +2,7 @@
 Configuration management for ACS HRMS Backend
 """
 from pydantic_settings import BaseSettings
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, AliasChoices
 from pydantic_settings import SettingsConfigDict
 from typing import Optional, List
 import os
@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     # Optional settings with defaults
     JWT_ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
     JWT_EXPIRE_MINUTES: int = Field(default=120, description="JWT token expiration in minutes")
+    JWT_REFRESH_EXPIRE_DAYS: int = Field(default=14, description="JWT refresh token expiration in days")
     
     APP_ENV: str = Field(default="local", description="Application environment: local, staging, prod")
     LOG_LEVEL: str = Field(default="INFO", description="Logging level: DEBUG, INFO, WARNING, ERROR")
@@ -51,6 +52,15 @@ class Settings(BaseSettings):
     R2_ACCESS_KEY_ID: Optional[str] = Field(default=None, description="Cloudflare R2 access key ID")
     R2_SECRET_ACCESS_KEY: Optional[str] = Field(default=None, description="Cloudflare R2 secret access key")
     R2_BUCKET: Optional[str] = Field(default=None, description="Cloudflare R2 bucket name")
+    
+    # Firebase Cloud Messaging
+    FCM_ENABLED: bool = Field(default=False, description="Enable FCM push notifications")
+    # Support both FCM_SERVICE_ACCOUNT_JSON and legacy FCM_SERVICE_ACCOUNT_PATH
+    FCM_SERVICE_ACCOUNT_JSON: Optional[str] = Field(
+        default=None,
+        description="Path to Firebase service account JSON",
+        validation_alias=AliasChoices("FCM_SERVICE_ACCOUNT_JSON", "FCM_SERVICE_ACCOUNT_PATH"),
+    )
     
     # Initial admin bootstrap settings
     INITIAL_ADMIN_EMAIL: str = Field(

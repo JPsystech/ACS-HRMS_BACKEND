@@ -29,6 +29,8 @@ from app.models.attendance_session import (
     SessionStatus,
     AttendanceEventType,
 )
+from app.models.notification_device import NotificationDevice
+from app.models.notification_reminder import NotificationReminder, ReminderType, DeliveryStatus
 
 __all__ = [
     "Department",
@@ -62,4 +64,8 @@ __all__ = [
     "AttendanceEvent",
     "SessionStatus",
     "AttendanceEventType",
+    "NotificationDevice",
+    "NotificationReminder",
+    "ReminderType",
+    "DeliveryStatus",
 ]
