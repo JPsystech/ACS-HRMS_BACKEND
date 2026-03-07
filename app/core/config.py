@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     R2_SECRET_ACCESS_KEY: Optional[str] = Field(default=None, description="Cloudflare R2 secret access key")
     R2_BUCKET: Optional[str] = Field(default=None, description="Cloudflare R2 bucket name")
     
+    # FCM (Firebase Cloud Messaging) settings
+    FCM_ENABLED: bool = Field(default=False, description="Whether FCM notifications are enabled")
+    FCM_SERVICE_ACCOUNT_PATH: Optional[str] = Field(default=None, description="Path to Firebase service account JSON file")
+    
     # Initial admin bootstrap settings
     INITIAL_ADMIN_EMAIL: str = Field(
         default="admin@company.com", 
@@ -70,7 +74,7 @@ class Settings(BaseSettings):
     # Debug: print env file location
     print(f"--- LOADING ENV FROM: {_env_file} ---")
     
-    model_config = SettingsConfigDict(env_file=_env_file, env_file_encoding="utf-8", extra="forbid")
+    model_config = SettingsConfigDict(env_file=_env_file, env_file_encoding="utf-8", extra="ignore")
     
     @field_validator("APP_ENV")
     @classmethod
