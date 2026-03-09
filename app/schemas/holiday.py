@@ -5,7 +5,7 @@ from datetime import date as date_type, datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, field_serializer, model_validator, ConfigDict
 from typing import Optional
-from app.core.config import settings
+from app.utils.url_utils import build_api_image_url
 
 
 class HolidayCreate(BaseModel):
@@ -49,8 +49,7 @@ class HolidayOut(BaseModel):
     def set_image_url(self) -> "HolidayOut":
         if self.image_key:
             try:
-                base = settings.PUBLIC_BASE_URL.rstrip("/")
-                self.image_url = f"{base}/api/v1/holidays/image/{self.image_key}"
+                self.image_url = build_api_image_url("holidays", self.image_key)
             except Exception:
                 self.image_url = None
         else:
@@ -99,8 +98,7 @@ class RHOut(BaseModel):
     def set_image_url(self) -> "RHOut":
         if self.image_key:
             try:
-                base = settings.PUBLIC_BASE_URL.rstrip("/")
-                self.image_url = f"{base}/api/v1/holidays/image/{self.image_key}"
+                self.image_url = build_api_image_url("holidays", self.image_key)
             except Exception:
                 self.image_url = None
         else:

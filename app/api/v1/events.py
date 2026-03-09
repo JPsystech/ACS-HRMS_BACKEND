@@ -14,6 +14,7 @@ from app.schemas.event import CompanyEventCreate, CompanyEventUpdate, CompanyEve
 from app.services.audit_service import log_audit
 from app.services.r2_storage import get_r2_storage_service
 from app.core.config import settings
+from app.utils.url_utils import build_api_image_url, normalize_public_url
 from datetime import datetime
 import re
 
@@ -45,7 +46,7 @@ async def create_event(
         name=event_data.name,
         active=event_data.active,
         description=event_data.description,
-        image_url=event_data.image_url,
+        image_url=normalize_public_url(event_data.image_url),
         location=event_data.location
     )
     
@@ -122,7 +123,7 @@ async def update_event(
     if event_data.description is not None:
         event.description = event_data.description
     if event_data.image_url is not None:
-        event.image_url = event_data.image_url
+        event.image_url = normalize_public_url(event_data.image_url)
     if event_data.location is not None:
         event.location = event_data.location
     
@@ -176,8 +177,7 @@ async def upload_event_image(
     if not ok:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Upload failed")
 
-    base = settings.PUBLIC_BASE_URL.rstrip("/")
-    event.image_url = f"{base}/api/v1/events/image/{object_key}"
+    event.image_url = build_api_image_url("events", object_key)
     db.add(event)
     db.commit()
     db.refresh(event)

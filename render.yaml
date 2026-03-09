@@ -12,3 +12,5 @@ services:
           name: hrms-database
           type: postgresql
           property: connectionString
+      - key: PUBLIC_BASE_URL
+        value: https://acs-hrms-backend.onrender.com
