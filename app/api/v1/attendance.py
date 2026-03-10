@@ -15,6 +15,7 @@ from app.schemas.attendance import (
     PunchOutRequest,
     AttendanceOut,
     AttendanceListResponse,
+    TeamSummaryResponse,
     AttendanceListItemOut,
     SessionPunchInRequest,
     SessionPunchOutRequest,
@@ -327,6 +328,40 @@ async def today_scope_endpoint(
         total=len([s for s in sessions if s is not None]),
     )
 
+_team_summary_cache: dict[int, tuple[float, dict]] = {}
+
+@router.get("/team-summary", response_model=TeamSummaryResponse)
+async def team_summary_endpoint(
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_user),
+):
+    from time import time
+    from app.models.employee import Role
+    from app.services.leave_service import get_subordinate_ids
+    from app.models.attendance_session import AttendanceSession
+    from app.utils.datetime_utils import get_work_date
+    ttl = 120.0
+    now_ts = time()
+    cached = _team_summary_cache.get(current_user.id)
+    if cached and now_ts - cached[0] < ttl:
+        return cached[1]
+    allowed_roles = {Role.MANAGER, Role.ADMIN, Role.HR, Role.MD, Role.VP}
+    if current_user.role not in allowed_roles:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    subs = get_subordinate_ids(db, current_user.id) or []
+    team_total = len(subs)
+    present_today = 0
+    if team_total > 0:
+        today = get_work_date()
+        present_today = db.query(AttendanceSession).filter(
+            AttendanceSession.employee_id.in_(subs),
+            AttendanceSession.work_date == today,
+        ).count()
+    not_punched = team_total - present_today
+    result = {"team_total": team_total, "present_today": present_today, "not_punched": not_punched}
+    _team_summary_cache[current_user.id] = (now_ts, result)
+    return result
 
 # --- Legacy (AttendanceLog) ---
 

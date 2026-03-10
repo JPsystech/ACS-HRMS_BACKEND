@@ -76,6 +76,11 @@ class AttendanceListResponse(BaseModel):
     items: List[AttendanceListItemOut]
     total: int
 
+class TeamSummaryResponse(BaseModel):
+    team_total: int
+    present_today: int
+    not_punched: int
+
 
 # --- Session-based (AttendanceSession / AttendanceEvent) ---
 
